@@ -603,31 +603,57 @@ class MLWebScraper:
         try:
             soup = BeautifulSoup(html, 'lxml')
             
+            # Debugging: Log what we are seeing
+            page_title = soup.title.string if soup.title else "No Title"
+            h1_text = soup.select_one('h1').get_text().strip() if soup.select_one('h1') else "No H1"
+            logger.info(f"HTML Parsing Debug - Title: {page_title} | H1: {h1_text} | Length: {len(html)}")
+            
+            if "captcha" in page_title.lower() or "security" in page_title.lower():
+                logger.error("SCRAPER BLOCKED: Captcha detected")
+                return None
+
             # 1. Extract Title
-            title_tag = soup.select_one('.ui-pdp-title')
+            # Try multiple selectors for title
+            title_tag = soup.select_one('.ui-pdp-title') or soup.find('h1', {'class': 'ui-pdp-title'}) or soup.select_one('h1')
             if not title_tag:
+                logger.warning("Could not find title tag with primary selectors")
                 return None
             title = title_tag.get_text().strip()
             
             # 2. Extract Price
             price = 0.0
-            price_fraction = soup.select_one('.ui-pdp-price__second-line .andes-money-amount__fraction')
-            if not price_fraction:
-                 # Try first line or generic generic
-                 price_fraction = soup.select_one('.andes-money-amount__fraction')
-            
-            if price_fraction:
+            # Try specific price container first, then generic
+            # Sometimes price is in meta tag
+            meta_price = soup.find('meta', itemprop='price')
+            if meta_price:
                 try:
-                    price = float(price_fraction.get_text().strip().replace('.', '').replace(',', ''))
+                    price = float(meta_price['content'])
                 except:
                     pass
             
+            if price == 0.0:
+                price_fraction = soup.select_one('.ui-pdp-price__second-line .andes-money-amount__fraction')
+                if not price_fraction:
+                     price_fraction = soup.select_one('.andes-money-amount__fraction')
+                
+                if price_fraction:
+                    try:
+                        price = float(price_fraction.get_text().strip().replace('.', '').replace(',', ''))
+                    except:
+                        pass
+            
             # 3. Extract Image
             image_url = None
-            img_tag = soup.select_one('.ui-pdp-gallery__figure img')
-            if img_tag:
-                image_url = img_tag.get('src') or img_tag.get('data-src')
+            # Try meta tag first
+            meta_image = soup.find('meta', property='og:image')
+            if meta_image:
+                image_url = meta_image['content']
             
+            if not image_url:
+                img_tag = soup.select_one('.ui-pdp-gallery__figure img')
+                if img_tag:
+                    image_url = img_tag.get('src') or img_tag.get('data-src')
+
             # 4. Extract Product ID from URL
             product_id = ""
             match = re.search(r"ML[A-Z]-?\d+", url)
