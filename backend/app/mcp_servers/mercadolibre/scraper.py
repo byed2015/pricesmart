@@ -692,8 +692,8 @@ class MLWebScraper:
             # Extract product ID from URL or sku
             product_id = product_node.get("sku", "")
             if not product_id:
-                match = re.search(r"ML[A-Z]\d+", url)
-                product_id = match.group(0) if match else ""
+                match = re.search(r"ML[A-Z]-?\d+", url)
+                product_id = match.group(0).replace("-", "") if match else ""
             
             return ProductDetails(
                 product_id=product_id,
@@ -759,9 +759,9 @@ def offers_from_html(html: str, product: IdentifiedProduct, limit: int = 150) ->
                 
                 # Extract ID from URL if possible (MLM...) or use a hash
                 item_id = ""
-                match = re.search(r"ML[A-Z]\d+", url)
+                match = re.search(r"ML[A-Z]-?\d+", url)
                 if match:
-                    item_id = match.group(0)
+                    item_id = match.group(0).replace("-", "")
                 
                 # Condition (ML usually puts it in a span like "Usado")
                 # This is harder to find consistently, default to unknown
