@@ -17,18 +17,35 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     libpq-dev \
     cmake \
+    git \
+    rustc \
+    cargo \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip and install uv
-RUN pip install --no-cache-dir --upgrade pip uv
+# Upgrade pip
+RUN pip install --no-cache-dir --upgrade pip
 
-# Create virtual environment
-ENV VIRTUAL_ENV=/opt/venv
-RUN uv venv $VIRTUAL_ENV
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+# --- RAM-SAFE INSTALLATION STRATEGY ---
+# Install heavy libraries individually to prevent OOM
+RUN pip install --no-cache-dir --prefer-binary numpy
+RUN pip install --no-cache-dir --prefer-binary pandas
+RUN pip install --no-cache-dir --prefer-binary scipy
 
-# Install requirements into venv
-RUN uv pip install --no-cache -r requirements.txt
+# Install compilation-heavy libraries
+RUN pip install --no-cache-dir --prefer-binary lxml brotli cryptography
+
+# Install core framework
+RUN pip install --no-cache-dir --prefer-binary fastapi uvicorn[standard] sqlalchemy pydantic
+
+# Install remaining dependencies explicitly to avoid massive dependency resolution
+RUN pip install --no-cache-dir --prefer-binary \
+    requests httpx \
+    openai langchain langchain-openai langgraph \
+    redis celery \
+    python-dotenv \
+    python-jose[cryptography] \
+    streamlit plotly watchdog \
+    beautifulsoup4
 
 # Copy application code
 COPY frontend /app/frontend
