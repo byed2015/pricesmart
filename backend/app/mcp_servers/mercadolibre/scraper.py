@@ -57,23 +57,23 @@ class ProductDetails:
 # User Agents for rotation
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/121.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/120.0.0.0 Safari/537.36"
+    # "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 ]
 
 DEFAULT_HEADERS = {
+    "Authority": "articulo.mercadolibre.com.mx",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-    "Accept-Language": "es-MX,es;q=0.9,en;q=0.8",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
+    "Accept-Language": "es-419,es;q=0.9,en;q=0.8",
+    "Cache-Control": "max-age=0",
+    "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Windows"',
     "Sec-Fetch-Dest": "document",
     "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-Site": "same-origin",
     "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 }
 
 
@@ -409,10 +409,8 @@ class MLWebScraper:
         self.timeout = 30.0
 
     def _get_headers(self) -> Dict[str, str]:
-        """Get headers with random User-Agent."""
-        headers = DEFAULT_HEADERS.copy()
-        headers["User-Agent"] = random.choice(USER_AGENTS)
-        return headers
+        """Get highly trusted Chrome headers."""
+        return DEFAULT_HEADERS.copy()
 
     async def _fetch_url(self, url: str) -> str:
         """
@@ -432,10 +430,19 @@ class MLWebScraper:
         
         # We create a new session for each fetch to avoid stale states/cookies if desired,
         # or we could keep one. For simplicity and robustness, new session per request.
-        async with AsyncSession(impersonate="chrome120", timeout=self.timeout) as client:
+        # Chrome 110 is sometimes more stable for bypassing than latest bleeding edge
+        async with AsyncSession(
+            impersonate="chrome110", 
+            timeout=self.timeout,
+            allow_redirects=True,
+            verify=True
+        ) as client:
             for attempt in range(max_retries):
                 try:
                     headers = self._get_headers()
+                    # Randomize delay slightly to feel organic
+                    await asyncio.sleep(random.uniform(0.5, 1.5))
+                    
                     response = await client.get(url, headers=headers)
                     
                     if response.status_code == 200:
