@@ -33,7 +33,8 @@ RUN pip install --no-cache-dir --prefer-binary scipy
 RUN pip install --no-cache-dir --prefer-binary lxml brotli cryptography
 
 # Install core framework
-RUN pip install --no-cache-dir --prefer-binary fastapi uvicorn[standard] sqlalchemy pydantic
+# Install core framework
+RUN pip install --no-cache-dir --prefer-binary fastapi uvicorn[standard] sqlalchemy pydantic pydantic-settings
 
 # Install remaining dependencies explicitly
 RUN pip install --no-cache-dir --prefer-binary \
