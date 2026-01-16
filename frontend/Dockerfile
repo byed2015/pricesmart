@@ -5,6 +5,13 @@ WORKDIR /app
 # Copy requirements
 COPY requirements.txt .
 
+# Install system dependencies (required for lxml, brotli, etc)
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libxml2-dev \
+    libxslt-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
