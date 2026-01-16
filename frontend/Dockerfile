@@ -55,7 +55,7 @@ COPY backend /app/backend
 ENV PYTHONPATH=/app
 
 # Expose Streamlit port
-EXPOSE 8501
+EXPOSE 80
 
 # Run Streamlit
-CMD ["streamlit", "run", "frontend/dashboard.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "frontend/dashboard.py", "--server.port=80", "--server.address=0.0.0.0"]

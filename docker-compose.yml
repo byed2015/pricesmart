@@ -30,8 +30,6 @@ services:
       - ./backend:/app
     expose:
       - "8000"
-    labels:
-      - "coolify.exposedPort=8000"
     env_file:
       - .env
     depends_on:
@@ -79,8 +77,6 @@ services:
     command: celery -A core.celery_app flower --port=5555
     expose:
       - "5555"
-    labels:
-      - "coolify.exposedPort=5555"
     env_file:
       - .env
     depends_on:
@@ -93,17 +89,14 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    # Explicitly use 8501
-    command: streamlit run frontend/dashboard.py --server.port=8501 --server.address=0.0.0.0
+    # Explicitly use Port 80 (Standard Web Port)
+    command: streamlit run frontend/dashboard.py --server.port=80 --server.address=0.0.0.0
     volumes:
       - ./frontend:/app
     expose:
-      - "8501"
+      - "80"
     environment:
       - BACKEND_URL=http://backend:8000
-      - PORT=8501
-    labels:
-      - "coolify.exposedPort=8501"
     env_file:
       - .env
     depends_on:
