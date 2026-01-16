@@ -16,11 +16,17 @@ RUN apt-get update && apt-get install -y \
     libxslt-dev \
     pkg-config \
     libpq-dev \
+    cmake \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip and install dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir --prefer-binary -r requirements.txt
+# Upgrade pip
+RUN pip install --no-cache-dir --upgrade pip
+
+# Install heavy dependencies manually first (to avoid OOM)
+RUN pip install --no-cache-dir --prefer-binary numpy pandas scipy
+
+# Install remaining dependencies
+RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 
 # Copy application code
 COPY frontend /app/frontend
