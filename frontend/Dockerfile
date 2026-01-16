@@ -5,8 +5,12 @@ WORKDIR /app
 # Copy requirements
 COPY requirements.txt .
 
-# Install system dependencies (required for lxml, brotli, etc)
+# Install system dependencies (required for lxml, brotli, cryptography, etc)
 RUN apt-get update && apt-get install -y \
+    build-essential \
+    libssl-dev \
+    libffi-dev \
+    python3-dev \
     gcc \
     libxml2-dev \
     libxslt-dev \
