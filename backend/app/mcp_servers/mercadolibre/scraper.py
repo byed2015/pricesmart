@@ -574,7 +574,7 @@ class MLWebScraper:
             html = await self._fetch_url(product_url)
         except Exception as e:
             logger.error(f"Failed to fetch product page: {e}")
-            return None
+            raise Exception(f"Network/Block Error: {str(e)}")
         
         # Try to extract from __PRELOADED_STATE__
         state = extract_preloaded_state(html)
@@ -595,8 +595,12 @@ class MLWebScraper:
         if details:
             return details
         
-        logger.warning("Could not extract product details from page")
-        return None
+        # If we got here, we have HTML but couldn't parse it.
+        # Check for Captcha again to be sure
+        if "captcha" in html.lower() or "security" in html.lower():
+             raise Exception("Blocked: MercadoLibre is serving a Captcha.")
+             
+        raise Exception(f"Parsing Error: HTML length {len(html)} but no data found. Title: {BeautifulSoup(html, 'lxml').title.string if BeautifulSoup(html, 'lxml').title else 'No Title'}")
 
     def _extract_details_from_html(self, html: str, url: str) -> Optional[ProductDetails]:
         """Extract product details directly from HTML using BeautifulSoup."""

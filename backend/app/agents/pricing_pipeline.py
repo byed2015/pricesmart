@@ -149,10 +149,10 @@ class PricingPipeline:
         try:
             # Step 0: Extract pivot product details
             logger.info("Step 0/5: Extracting pivot product details")
-            pivot_product = await self.scraper.extract_product_details(product_url)
-            
-            if not pivot_product:
-                error_msg = "Failed to extract product details from URL"
+            try:
+                pivot_product = await self.scraper.extract_product_details(product_url)
+            except Exception as e:
+                error_msg = f"Extraction Failed: {str(e)}"
                 logger.error(error_msg)
                 result["errors"].append(error_msg)
                 return result
