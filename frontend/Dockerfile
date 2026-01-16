@@ -19,14 +19,11 @@ RUN apt-get update && apt-get install -y \
     cmake \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip
-RUN pip install --no-cache-dir --upgrade pip
+# Upgrade pip and install uv
+RUN pip install --no-cache-dir --upgrade pip uv
 
-# Install heavy dependencies manually first (to avoid OOM)
-RUN pip install --no-cache-dir --prefer-binary numpy pandas scipy
-
-# Install remaining dependencies
-RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
+# Install requirements using uv (much faster and reliable)
+RUN uv pip install --system --no-cache -r requirements.txt
 
 # Copy application code
 COPY frontend /app/frontend
