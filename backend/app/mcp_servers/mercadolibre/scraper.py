@@ -1,16 +1,10 @@
-"""
-Web scraper for Mercado Libre.
-Migrated from agente_precios_ml_gagr.ipynb
-
-This module extracts product data from ML HTML without using API.
-Strategy: Extract __PRELOADED_STATE__ or JSON-LD from HTML.
-"""
 import re
 import json
 import time
 import asyncio
 import random
-import httpx
+# from httpx import AsyncClient, Timeout
+from curl_cffi.requests import AsyncSession
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from bs4 import BeautifulSoup
@@ -408,10 +402,11 @@ class MLWebScraper:
     """
     Mercado Libre web scraper.
     Extracts product data from HTML without API.
+    Uses curl_cffi to impersonate Chrome and bypass Captchas.
     """
     
     def __init__(self):
-        self.timeout = httpx.Timeout(30.0, connect=10.0)
+        self.timeout = 30.0
 
     def _get_headers(self) -> Dict[str, str]:
         """Get headers with random User-Agent."""
@@ -421,7 +416,7 @@ class MLWebScraper:
 
     async def _fetch_url(self, url: str) -> str:
         """
-        Fetch URL with retries and exponential backoff.
+        Fetch URL using curl_cffi to mimic real Chrome browser.
         
         Args:
             url: URL to fetch
@@ -430,12 +425,14 @@ class MLWebScraper:
             HTML content
             
         Raises:
-            httpx.HTTPError: If request fails after retries
+            Exception: If request fails after retries
         """
         max_retries = 3
         base_delay = 2
         
-        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+        # We create a new session for each fetch to avoid stale states/cookies if desired,
+        # or we could keep one. For simplicity and robustness, new session per request.
+        async with AsyncSession(impersonate="chrome120", timeout=self.timeout) as client:
             for attempt in range(max_retries):
                 try:
                     headers = self._get_headers()
@@ -450,16 +447,20 @@ class MLWebScraper:
                         logger.warning(f"Got {response.status_code} for {url}. Retrying in {delay:.2f}s...")
                         await asyncio.sleep(delay)
                         continue
-                        
+                     
+                    if response.status_code == 404:
+                         raise Exception(f"404 Not Found: {url}")
+                         
+                    # Standard error raising for other codes
                     response.raise_for_status()
                     
-                except httpx.RequestError as e:
+                except Exception as e:
                     logger.warning(f"Request error for {url}: {e}. Attempt {attempt + 1}/{max_retries}")
                     if attempt == max_retries - 1:
-                        raise
+                        raise e
                     await asyncio.sleep(1)
             
-            raise httpx.HTTPError(f"Failed to fetch {url} after {max_retries} attempts")
+            raise Exception(f"Failed to fetch {url} after {max_retries} attempts")
     
     async def search_products(
         self,
