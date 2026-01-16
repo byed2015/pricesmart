@@ -26,8 +26,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - ./backend:/app
+    # Removed code volume override to use Image paths correctly
     expose:
       - "8000"
     env_file:
@@ -43,8 +42,8 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     command: celery -A core.celery_app worker --loglevel=info --concurrency=4
+    # Removed code volume override
     volumes:
-      - ./backend:/app
       - ./agents:/agents
       - ./mcp_servers:/mcp_servers
     env_file:
@@ -60,8 +59,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     command: celery -A core.celery_app beat --loglevel=info
-    volumes:
-      - ./backend:/app
+    # Removed code volume override
     env_file:
       - .env
     depends_on:
@@ -91,8 +89,7 @@ services:
       dockerfile: frontend/Dockerfile
     # Explicitly use Port 80 (Standard Web Port)
     command: streamlit run frontend/dashboard.py --server.port=80 --server.address=0.0.0.0
-    volumes:
-      - ./frontend:/app
+    # Removed code volume override to fix path mismatch!
     expose:
       - "80"
     environment:
