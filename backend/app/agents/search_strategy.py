@@ -4,12 +4,21 @@ Search Strategy Agent - Determines optimal search terms for similar products.
 This agent analyzes the characteristics of a pivot product (e.g., your Louder branded item)
 and generates search terms to find similar products in the market, regardless of brand.
 
+Enhanced with DataEnricherAgent for detailed specification extraction and analysis.
+
 Use case: You import and rebrand products, so you need to find competitors with similar
 specifications, not the same brand.
 """
 from typing import Dict, Any, List, Optional
 from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+import json
+import asyncio
+import os
+
+from app.core.config import settings
 from app.core.logging import get_logger
+from app.core.monitoring import track_agent_execution
 from app.mcp_servers.mercadolibre.scraper import ProductDetails
 
 logger = get_logger(__name__)
@@ -31,11 +40,18 @@ class SearchStrategyAgent:
             model: OpenAI model to use
             temperature: Temperature for generation (0.2 = more focused)
         """
-        self.llm = ChatOpenAI(model=model, temperature=temperature)
+        # Dynamic API Key fetch (Crucial for Streamlit Local Mode where env is set late)
+        api_key = settings.OPENAI_API_KEY or os.getenv("OPENAI_API_KEY")
+        self.llm = ChatOpenAI(
+            model=model,
+            temperature=temperature,
+            api_key=api_key
+        )
         logger.info(
             "SearchStrategyAgent initialized",
             model=model,
-            temperature=temperature
+            temperature=temperature,
+            has_api_key=bool(api_key)
         )
     
     def generate_search_terms(self, product: ProductDetails) -> Dict[str, Any]:
@@ -64,41 +80,76 @@ class SearchStrategyAgent:
         # Create prompt
         prompt = f"""Eres un experto en análisis de productos electrónicos y estrategias de búsqueda para e-commerce.
 
-Tu tarea es analizar un producto que el usuario importa y rebrandea, y generar los MEJORES términos de búsqueda para encontrar productos SIMILARES en Mercado Libre.
+Tu tarea es analizar un producto que el usuario importa y rebrandea, y generar los MEJORES términos de búsqueda para encontrar productos FUNCIONALMENTE EQUIVALENTES de OTRAS marcas/proveedores en Mercado Libre.
 
-IMPORTANTE:
-- NO busques por marca, ya que el usuario usa su propia marca (Louder)
-- Enfócate en las CARACTERÍSTICAS TÉCNICAS y CATEGORÍA del producto
-- Los competidores tendrán marcas diferentes pero características similares
-- Genera términos que encuentren productos con las MISMAS ESPECIFICACIONES
+OBJETIVO: Búsqueda inteligente cross-marca que encuentre competidores directos.
+
+ESTRATEGIAS REQUERIDAS:
+1. **Búsqueda genérica por categoría + specs técnicas**
+   - SIN marca, enfoque en especificaciones
+   - Ejemplo: "cable micrófono XLR 6 metros" (no "cable Louder XLR")
+   - Ejemplo: "tripie bafle altura ajustable" (no "tripie Fussion")
+
+2. **Búsqueda por función/uso real**
+   - Cómo lo usaría un cliente
+   - Ejemplo: "pedestal para bocina profesional"
+   - Ejemplo: "soporte audio eventos"
+
+3. **Búsqueda por especificaciones técnicas exactas**
+   - Números, dimensiones, potencia, impedancia
+   - Ejemplo: "driver 44mm 1000w titanio"
+   - Ejemplo: "bocina 15 pulgadas 4 ohms"
+
+4. **Sinónimos y términos alternativos**
+   - Diferentes palabras para el mismo concepto
+   - Ejemplo: "bafle" → ["bocina", "altavoz", "parlante"]
+   - Ejemplo: "tripie" → ["pedestal", "stand", "soporte"]
 
 PRODUCTO A ANALIZAR:
 {product_info}
 
+IMPORTANTE - FILTRADO INTELIGENTE:
+- EXCLUIR la marca propia del usuario (si aparece en el título)
+- EXCLUIR marcas premium que no compiten en mismo segmento de precio
+- EXCLUIR accesorios, bundles, refacciones, productos usados
+- INCLUIR variantes genéricas y marcas de precio similar
+
 Por favor, genera:
-1. **primary_search**: El término de búsqueda PRINCIPAL (el más probable de encontrar productos similares)
-   - Debe incluir tipo de producto + especificación clave
-   - Ejemplo: "bocina techo 5 pulgadas" o "audífonos bluetooth cancelación ruido"
+1. **primary_search**: Término de búsqueda PRINCIPAL genérico (SIN marca)
+   - Tipo de producto + especificación clave más distintiva
+   - Ejemplo: "bocina techo 5 pulgadas" o "cable audio xlr 6m"
    
-2. **alternative_searches**: 3-5 búsquedas alternativas para ampliar resultados
-   - Variaciones con diferentes términos técnicos
-   - Diferentes formas de describir el producto
+2. **alternative_searches**: 3-5 búsquedas alternativas inteligentes
+   - Sinónimos y formas alternativas de describir el producto
+   - Combinaciones de specs diferentes
+   - Términos de uso/aplicación
    
-3. **key_specs**: Lista de especificaciones técnicas CLAVE que deben tener los productos comparables
-   - Ejemplo: ["5 pulgadas", "10W", "línea 70-100V", "instalación empotrada"]
+3. **key_specs**: Especificaciones técnicas CLAVE para validar equivalencia
+   - Dimensiones, potencia, impedancia, voltaje, conectores
+   - Ejemplo: ["5 pulgadas", "10W", "8 ohms", "empotrable"]
    
-4. **exclude_terms**: Términos que deben EXCLUIRSE (para evitar productos diferentes)
-   - Ejemplo: ["bluetooth", "portátil"] si el producto es de instalación fija
+4. **exclude_terms**: Términos a EXCLUIR en resultados
+   - Marca propia del usuario
+   - Accesorios no equivalentes (funda, cable, adaptador, refacción)
+   - Bundles/paquetes que no sean solo el producto
+   - Productos usados o reacondicionados (si aplica)
    
-5. **reasoning**: Breve explicación de por qué elegiste estos términos
+5. **exclude_premium_brands**: Lista de marcas premium a excluir (opcional)
+   - Solo si el producto es económico/medio y no compite con premium
+   - Ejemplo: ["JBL", "Bose", "Sony"] para productos económicos
+   
+6. **reasoning**: Explicación de la estrategia de búsqueda
+   - Por qué estos términos encontrarán equivalentes funcionales
+   - Qué hace comparable a otro producto
 
 Responde SOLO en formato JSON válido:
 {{
-  "primary_search": "término principal",
-  "alternative_searches": ["alternativa 1", "alternativa 2", ...],
-  "key_specs": ["spec 1", "spec 2", ...],
-  "exclude_terms": ["término 1", "término 2", ...],
-  "reasoning": "explicación breve"
+  "primary_search": "término principal genérico",
+  "alternative_searches": ["búsqueda 1", "búsqueda 2", "búsqueda 3", "búsqueda 4"],
+  "key_specs": ["spec técnica 1", "spec técnica 2", ...],
+  "exclude_terms": ["marca propia", "accesorio 1", "bundle", "usado"],
+  "exclude_premium_brands": ["Marca Premium 1", "Marca Premium 2"],
+  "reasoning": "explicación de estrategia"
 }}"""
         
         try:

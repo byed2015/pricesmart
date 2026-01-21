@@ -44,6 +44,8 @@ class PricingRecommendation(BaseModel):
     alternative_prices: List[float] = Field(default_factory=list)
     market_position: str = Field(description="premium, competitive, budget")
     viability: Optional[Dict[str, Any]] = None
+    profit_per_unit: Optional[float] = None
+    roi_percent: Optional[float] = None
 
 
 class PricingIntelligenceState(TypedDict):

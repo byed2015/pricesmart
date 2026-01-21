@@ -70,13 +70,19 @@ def calculate_statistics(values: List[float]) -> PriceStatistics:
         raise ValueError("Cannot calculate statistics for empty list")
     
     xs = sorted(values)
+    mean_val = sum(xs) / len(xs)
+    
+    # Calculate standard deviation
+    variance = sum((x - mean_val) ** 2 for x in xs) / len(xs)
+    std_dev_val = variance ** 0.5
     
     stats = PriceStatistics(
         n=len(xs),
         min=xs[0],
         max=xs[-1],
-        mean=sum(xs) / len(xs),
-        median=statistics.median(xs)
+        mean=mean_val,
+        median=statistics.median(xs),
+        std_dev=std_dev_val
     )
     
     # Calculate IQR if enough data points
@@ -219,6 +225,12 @@ def get_price_recommendation_data(offers: List[Offer]) -> Dict[str, Any]:
         "by_condition": by_condition,
         "overall": {
             "total_offers": len(offers),
+            "mean": overall_stats.mean,
+            "median": overall_stats.median,
+            "std_dev": overall_stats.std_dev,
+            "range": overall_stats.max - overall_stats.min,
+            "min": overall_stats.min,
+            "max": overall_stats.max,
             "stats_all": overall_stats.to_dict(),
             "stats_clean": clean_stats.to_dict() if clean_stats else None,
             "outliers_removed": len(outliers)

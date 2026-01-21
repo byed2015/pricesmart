@@ -3,13 +3,14 @@ Complete Pricing Pipeline - Orchestrator
 
 This module orchestrates the complete pricing workflow with two modes:
 
-MODE 1 - Product URL (NEW):
+MODE 1 - Product URL (NEW - ENHANCED):
 1. Extract Product Details → Get complete specs from pivot product
-2. Search Strategy Agent (LLM) → Generate optimal search terms
-3. HTML Scraping (no LLM) → Extract similar products from ML
-4. Product Matching Agent (LLM) → Filter comparable products  
-5. Statistical Analysis (no LLM) → Calculate price statistics
-6. Pricing Recommendation Agent (LLM) → Generate optimal price
+2. Enrich Data (LLM) → Analyze and extract detailed specifications
+3. Search Strategy Agent (LLM) → Generate optimal search terms using enriched data
+4. HTML Scraping (no LLM) → Extract similar products from ML
+5. Product Matching Agent (LLM) → Filter comparable products  
+6. Statistical Analysis (no LLM) → Calculate price statistics
+7. Pricing Recommendation Agent (LLM) → Generate optimal price
 
 MODE 2 - Product Description (LEGACY):
 1. HTML Scraping (no LLM) → Extract products from ML
@@ -32,6 +33,7 @@ from app.mcp_servers.mercadolibre.stats import get_price_recommendation_data
 from app.agents.product_matching import ProductMatchingAgent
 from app.agents.pricing_intelligence import PricingIntelligenceAgent
 from app.agents.search_strategy import SearchStrategyAgent
+from app.agents.data_enricher import DataEnricherAgent
 from app.mcp_servers.mercadolibre.models import Offer
 
 logger = get_logger(__name__)
@@ -81,10 +83,11 @@ class PricingPipeline:
     def __init__(self):
         self.scraper = MLWebScraper()
         self.search_strategy_agent = SearchStrategyAgent()
+        self.data_enricher_agent = DataEnricherAgent()
         self.matching_agent = ProductMatchingAgent()
         self.pricing_agent = PricingIntelligenceAgent()
         
-        logger.info("PricingPipeline initialized")
+        logger.info("PricingPipeline initialized with DataEnricherAgent")
     
     def _is_product_url(self, input_str: str) -> bool:
         """Check if input is a Mercado Libre product URL."""
@@ -94,9 +97,10 @@ class PricingPipeline:
     async def analyze_product(
         self,
         product_input: str,
-        max_offers: int = 25,
+        max_offers: int = 50,
         cost_price: float = 0.0,
-        target_margin: float = 30.0
+        target_margin: float = 30.0,
+        price_tolerance: float = 0.30
     ) -> Dict[str, Any]:
         """
         Complete pricing analysis for a product.
@@ -106,6 +110,12 @@ class PricingPipeline:
                 - Product URL (https://www.mercadolibre.com.mx/.../p/MLM...)
                 - Product description ("Sony WH-1000XM5")
             max_offers: Maximum offers to scrape
+            cost_price: Your cost for the product
+            target_margin: Target profit margin (0.30 = 30%)
+            price_tolerance: Price range filter for competitors (0.30 = ±30%)
+                - Used to filter ML search results
+                - Example: If pivot product = $3000, search $2100-$3900
+                - Reduces noise from irrelevant price points
             
         Returns:
             Complete analysis with recommendation
@@ -114,16 +124,21 @@ class PricingPipeline:
         is_url = self._is_product_url(product_input)
         
         if is_url:
-            return await self._analyze_from_url(product_input, max_offers, cost_price, target_margin)
+            return await self._analyze_from_url(
+                product_input, max_offers, cost_price, target_margin, price_tolerance
+            )
         else:
-            return await self._analyze_from_description(product_input, max_offers, cost_price, target_margin)
+            return await self._analyze_from_description(
+                product_input, max_offers, cost_price, target_margin, price_tolerance
+            )
     
     async def _analyze_from_url(
         self,
         product_url: str,
-        max_offers: int = 25,
+        max_offers: int = 50,
         cost_price: float = 0.0,
-        target_margin: float = 30.0
+        target_margin: float = 30.0,
+        price_tolerance: float = 0.30
     ) -> Dict[str, Any]:
         """
         Analyze product starting from a product URL (new workflow).
@@ -134,7 +149,8 @@ class PricingPipeline:
         logger.info(
             "Starting pricing analysis from product URL",
             url=product_url,
-            max_offers=max_offers
+            max_offers=max_offers,
+            price_tolerance=price_tolerance
         )
         
         start_time = datetime.now()
@@ -167,8 +183,48 @@ class PricingPipeline:
                 "image_url": pivot_product.image_url
             }
             
-            # Step 1: Generate search strategy
-            logger.info("Step 1/5: Generating search strategy")
+            # Calculate price range for filtering (±tolerance)
+            pivot_price = pivot_product.price
+            price_min = pivot_price * (1 - price_tolerance) if pivot_price > 0 else None
+            price_max = pivot_price * (1 + price_tolerance) if pivot_price > 0 else None
+            
+            if price_min and price_max:
+                logger.info(
+                    "Price range calculated for filtering",
+                    pivot_price=pivot_price,
+                    price_min=price_min,
+                    price_max=price_max,
+                    tolerance_percent=int(price_tolerance * 100)
+                )
+            
+            # Step 1: Enrich data from product page
+            logger.info("Step 1/6: Enriching product data with detailed specifications")
+            enrichment_result = await self.data_enricher_agent.analyze_product(pivot_product)
+            
+            enriched_specs = None
+            search_patterns = []
+            if enrichment_result.get("status") == "success":
+                enriched_specs = enrichment_result.get("enriched_specs")
+                search_patterns = enrichment_result.get("search_patterns", [])
+                logger.info(
+                    "Product enrichment successful",
+                    category=enriched_specs.category if enriched_specs else None,
+                    patterns_count=len(search_patterns)
+                )
+            else:
+                logger.warning(f"Product enrichment failed: {enrichment_result.get('error')}")
+            
+            result["pipeline_steps"]["enrichment"] = {
+                "status": enrichment_result.get("status"),
+                "enriched_category": enriched_specs.category if enriched_specs else None,
+                "key_specs": enriched_specs.key_specs if enriched_specs else {},
+                "search_patterns": search_patterns,
+                "functional_descriptors": enriched_specs.functional_descriptors if enriched_specs else [],
+                "market_segment": enriched_specs.market_segment if enriched_specs else None
+            }
+            
+            # Step 2: Generate search strategy (now using enriched data)
+            logger.info("Step 2/6: Generating search strategy with enriched data")
             search_strategy = self.search_strategy_agent.generate_search_terms(pivot_product)
             
             result["pipeline_steps"]["search_strategy"] = {
@@ -176,35 +232,121 @@ class PricingPipeline:
                 "primary_search": search_strategy.get("primary_search"),
                 "alternative_searches": search_strategy.get("alternative_searches"),
                 "key_specs": search_strategy.get("key_specs"),
-                "reasoning": search_strategy.get("reasoning")
+                "reasoning": search_strategy.get("reasoning"),
+                "enriched_patterns_used": len(search_patterns) > 0
             }
             
-            # Step 2: Scrape products using optimized search
-            logger.info("Step 2/5: Scraping Mercado Libre with optimized search")
+            # Step 3: Scrape products using PRIMARY search + ALTERNATIVE searches
+            logger.info("Step 3/6: Scraping Mercado Libre with multiple search strategies")
+            all_offers = []
+            search_results_log = []
+            
+            # Primary search
             search_term = search_strategy.get("primary_search")
             scraping_result = await self.scraper.search_products(
                 description=search_term,
-                max_offers=max_offers
+                max_offers=max_offers,
+                price_min=price_min,
+                price_max=price_max
             )
+            all_offers.extend(scraping_result.offers)
+            search_results_log.append({
+                "search": search_term,
+                "offers": len(scraping_result.offers)
+            })
+            logger.info(f"Primary search '{search_term}': {len(scraping_result.offers)} offers")
+            
+            # Alternative searches (if we don't have enough offers)
+            alternative_searches = search_strategy.get("alternative_searches", [])
+            if len(all_offers) < max_offers and alternative_searches:
+                for alt_search in alternative_searches[:3]:  # Limit to 3 alternative searches
+                    logger.info(f"Running alternative search: '{alt_search}'")
+                    alt_result = await self.scraper.search_products(
+                        description=alt_search,
+                        max_offers=max_offers // 2,  # Request fewer per alternative
+                        price_min=price_min,
+                        price_max=price_max
+                    )
+                    # Avoid duplicates by checking item_id
+                    existing_ids = {o.item_id for o in all_offers}
+                    new_offers = [o for o in alt_result.offers if o.item_id not in existing_ids]
+                    all_offers.extend(new_offers)
+                    search_results_log.append({
+                        "search": alt_search,
+                        "offers": len(new_offers)
+                    })
+                    logger.info(f"Alternative search '{alt_search}': {len(new_offers)} new offers")
+                    
+                    if len(all_offers) >= max_offers:
+                        break
+            
+            # Limit to max_offers
+            all_offers = all_offers[:max_offers]
             
             result["pipeline_steps"]["scraping"] = {
                 "status": "completed",
                 "search_term": search_term,
                 "strategy": scraping_result.strategy,
-                "offers_found": len(scraping_result.offers),
+                "offers_found": len(all_offers),
                 "url": scraping_result.listing_url,
-                "offers": [o.to_dict() for o in scraping_result.offers]
+                "price_filter_applied": bool(price_min and price_max),
+                "price_min": int(price_min) if price_min else None,
+                "price_max": int(price_max) if price_max else None,
+                "tolerance_percent": int(price_tolerance * 100),
+                "search_results": search_results_log,
+                "offers": [o.to_dict() for o in all_offers]
             }
             
-            if not scraping_result.offers:
+            if not all_offers:
                 error_msg = "No offers found"
                 logger.warning(error_msg)
                 result["errors"].append(error_msg)
                 return result
             
-            # Step 3: Filter comparable products
-            logger.info("Step 3/5: Filtering comparable products")
+            # Step 4: Filter comparable products
+            logger.info("Step 4/6: Filtering comparable products")
             raw_offers = [o.to_dict() for o in scraping_result.offers]
+            # Step 3b: Post-scraping price validation (ensure tolerance is respected)
+            logger.info("Step 3b/6: Validating price tolerance on scraped offers")
+            validated_offers = []
+            offers_outside_tolerance = 0
+            
+            for offer in all_offers:
+                # Check if offer price is within tolerance range
+                if price_min is not None and price_max is not None:
+                    if offer.price < price_min or offer.price > price_max:
+                        offers_outside_tolerance += 1
+                        logger.debug(
+                            "Offer outside tolerance range - filtering out",
+                            price=offer.price,
+                            min=price_min,
+                            max=price_max
+                        )
+                        continue
+                validated_offers.append(offer)
+            
+            if offers_outside_tolerance > 0:
+                logger.info(
+                    "Offers filtered by price tolerance",
+                    removed=offers_outside_tolerance,
+                    remaining=len(validated_offers),
+                    tolerance_percent=int(price_tolerance * 100)
+                )
+            
+            # Update scraping result with validated offers
+            scraping_result.offers = validated_offers
+            result["pipeline_steps"]["scraping"]["offers_found"] = len(validated_offers)
+            result["pipeline_steps"]["scraping"]["offers_outside_tolerance"] = offers_outside_tolerance
+            
+            if not validated_offers:
+                error_msg = f"No offers found within price tolerance (±{int(price_tolerance * 100)}%)"
+                logger.warning(error_msg)
+                result["errors"].append(error_msg)
+                return result
+            
+            # Step 4: Filter comparable products
+            logger.info("Step 4/6: Filtering comparable products")
+            raw_offers = [o.to_dict() for o in validated_offers]
             matching_result = await self.matching_agent.execute(
                 target_product=pivot_product.title,
                 raw_offers=raw_offers,
@@ -243,8 +385,8 @@ class PricingPipeline:
                 result["errors"].append(error_msg)
                 return result
             
-            # Step 4: Calculate statistics
-            logger.info("Step 4/5: Calculating price statistics")
+            # Step 5: Calculate statistics
+            logger.info("Step 5/6: Calculating price statistics")
             statistics = get_price_recommendation_data(comparable_offers)
             
             result["pipeline_steps"]["statistics"] = {
@@ -256,9 +398,8 @@ class PricingPipeline:
                 "overall": statistics.get("overall")
             }
             
-            # Step 5: Generate pricing recommendation
-            # Step 5: Generate pricing recommendation
-            logger.info("Step 5/5: Generating pricing recommendation")
+            # Step 6: Generate pricing recommendation
+            logger.info("Step 6/6: Generating pricing recommendation")
             
             # Extract clean prices from comparable offers
             competitor_prices = [o.price for o in comparable_offers]
@@ -316,6 +457,7 @@ class PricingPipeline:
                         category_fee_percent=15.0 # Electronica default
                      )
                      
+                     # Store profitability breakdown
                      result["profitability"] = {
                         "breakdown": profit_calc.breakdown,
                         "net_margin": profit_calc.net_margin_percent,
@@ -323,6 +465,19 @@ class PricingPipeline:
                         "net_profit": profit_calc.net_profit,
                         "currency": "MXN"
                      }
+                     
+                     # Enrich recommendation with profitability metrics
+                     if isinstance(recommendation, dict):
+                        recommendation["profit_per_unit"] = profit_calc.net_profit
+                        recommendation["roi_percent"] = profit_calc.return_on_investment
+                        recommendation["suggested_margin_percent"] = profit_calc.net_margin_percent
+                     else:
+                        # If it's a Pydantic model, set attributes
+                        try:
+                            recommendation.profit_per_unit = profit_calc.net_profit
+                            recommendation.roi_percent = profit_calc.return_on_investment
+                        except Exception:
+                            pass  # Model might be read-only
             
         except Exception as e:
             error_msg = f"Pipeline error: {str(e)}"
@@ -347,10 +502,14 @@ class PricingPipeline:
         product_description: str,
         max_offers: int = 25,
         cost_price: float = 0.0,
-        target_margin: float = 30.0
+        target_margin: float = 30.0,
+        price_tolerance: float = 0.30
     ) -> Dict[str, Any]:
         """
         Analyze product from description (legacy workflow).
+        
+        Note: Without pivot product URL, price filtering cannot be applied.
+        Consider using URL-based analysis for better results.
         """
         logger.info(
             "Starting complete pricing analysis",

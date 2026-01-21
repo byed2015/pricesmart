@@ -150,18 +150,45 @@ def match_title(title: str, product: IdentifiedProduct) -> bool:
     return True
 
 
-def listing_url(query: str) -> str:
+def listing_url(query: str, price_min: Optional[float] = None, price_max: Optional[float] = None) -> str:
     """
-    Generate Mercado Libre listing URL from query.
+    Generate Mercado Libre listing URL from query with optional price filters.
     
     Args:
         query: Search query
+        price_min: Minimum price filter (optional)
+        price_max: Maximum price filter (optional)
         
     Returns:
-        ML listing URL
+        ML listing URL with price filters if specified
+        
+    Example:
+        listing_url("cable xlr", 200, 300)
+        → https://listado.mercadolibre.com.mx/cable-xlr#D[A:200-300]
     """
     slug = re.sub(r"[^a-z0-9]+", "-", normalize_text(query)).strip("-")
-    return f"https://listado.mercadolibre.com.mx/{slug}"
+    base_url = f"https://listado.mercadolibre.com.mx/{slug}"
+    
+    # Add price filter if specified
+    if price_min is not None and price_max is not None:
+        # MercadoLibre price filter format: #D[A:min-max]
+        price_filter = f"#D[A:{int(price_min)}-{int(price_max)}]"
+        base_url += price_filter
+        logger.info(
+            "Price filter applied to search",
+            price_min=int(price_min),
+            price_max=int(price_max)
+        )
+    elif price_min is not None:
+        # Minimum price only
+        price_filter = f"#D[A:{int(price_min)}-*]"
+        base_url += price_filter
+    elif price_max is not None:
+        # Maximum price only
+        price_filter = f"#D[A:*-{int(price_max)}]"
+        base_url += price_filter
+    
+    return base_url
 
 
 def extract_js_object_by_brackets(text: str, start_idx: int) -> Optional[str]:
@@ -473,28 +500,42 @@ class MLWebScraper:
         self,
         description: str,
         max_offers: int = 25,
-        timeout: int = 25
+        timeout: int = 25,
+        price_min: Optional[float] = None,
+        price_max: Optional[float] = None
     ) -> ScrapingResult:
         """
-        Search for products and extract offers from HTML.
+        Search for products and extract offers from HTML with optional price filtering.
         
         Args:
             description: Product description (e.g., "Sony WH-1000XM5 audifonos")
             max_offers: Maximum offers to return
             timeout: Request timeout in seconds
+            price_min: Minimum price filter (optional) - filters results in ML search
+            price_max: Maximum price filter (optional) - filters results in ML search
             
         Returns:
             ScrapingResult with offers and metadata
+            
+        Example:
+            # Search with price range ±30% around $3000
+            await scraper.search_products(
+                "cable xlr 6 metros",
+                price_min=2100,  # $3000 * 0.7
+                price_max=3900   # $3000 * 1.3
+            )
         """
         logger.info(
             "Starting ML web scraping",
             description=description,
-            max_offers=max_offers
+            max_offers=max_offers,
+            price_min=price_min,
+            price_max=price_max
         )
         
         # Extract product info
         product = extract_product(description)
-        url = listing_url(product.signature)
+        url = listing_url(product.signature, price_min=price_min, price_max=price_max)
         
         logger.info(
             "Product identified",

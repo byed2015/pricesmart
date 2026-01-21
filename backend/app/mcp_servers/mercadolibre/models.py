@@ -56,6 +56,7 @@ class PriceStatistics:
     max: float
     mean: float
     median: float
+    std_dev: float = 0.0
     q1: Optional[float] = None
     q3: Optional[float] = None
     iqr: Optional[float] = None
@@ -69,6 +70,7 @@ class PriceStatistics:
             "max": self.max,
             "mean": self.mean,
             "median": self.median,
+            "std_dev": self.std_dev,
             "q1": self.q1,
             "q3": self.q3,
             "iqr": self.iqr,

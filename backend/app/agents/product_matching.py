@@ -94,12 +94,14 @@ class ProductMatchingAgent:
         # Add nodes
         workflow.add_node("receive_offers", self.receive_offers)
         workflow.add_node("classify_products", self.classify_products)
+        workflow.add_node("validate_equivalence", self.validate_equivalence)
         workflow.add_node("filter_comparable", self.filter_comparable)
         
         # Define edges
         workflow.set_entry_point("receive_offers")
         workflow.add_edge("receive_offers", "classify_products")
-        workflow.add_edge("classify_products", "filter_comparable")
+        workflow.add_edge("classify_products", "validate_equivalence")
+        workflow.add_edge("validate_equivalence", "filter_comparable")
         workflow.add_edge("filter_comparable", END)
         
         return workflow.compile()
@@ -285,98 +287,9 @@ class ProductMatchingAgent:
                         confidence=0.99,
                         reason=f"Spec Mismatch ({category}): Target {t_values} vs Offer {o_values}"
                     )
-            
-            # --- TOKEN OVERLAP CHECK ---
-            # If the offer title has very little in common with target, reject.
-            # E.g. Target: "Bocina Sony" vs Offer: "Cable Usb" -> Low overlap.
-            token_score = self._calculate_token_overlap(target, title)
-            # Threshold Tuning:
-            # 0.15 was blocking valid short-title matches (e.g. "Bocina 8" vs "Bafle 8").
-            # Lowering to 0.05 just to ensure at least ONE meaningful token matches.
-            # We rely on Embeddings (0.25) for semantic quality.
-            if token_score < 0.05:
-                 # However, be careful with short titles.
-                 # Let's log it but maybe be strict only if it's really low (e.g. < 0.1)
-                 if token_score < 0.05:
-                      return ProductClassification(
-                        item_id=offer.get('item_id', ''),
-                        title=title,
-                        is_comparable=False,
-                        is_accessory=False,
-                        is_bundle=False,
-                        confidence=0.90,
-                        reason=f"Semantic Mismatch: Low token overlap ({token_score:.2f}) with target."
-                    )
 
-            # --- DIGIT CONSISTENCY CHECK ---
-            if not self._check_digit_consistency(target, title):
-                 target_digits = re.findall(r'\b\d+\b', target)
-                 return ProductClassification(
-                    item_id=offer.get('item_id', ''),
-                    title=title,
-                    is_comparable=False,
-                    is_accessory=False,
-                    is_bundle=False,
-                    confidence=0.95,
-                    reason=f"Digit Mismatch: Target numbers {target_digits} not found in offer."
-                )
-            
-            # --- KEYWORD SAFETY CHECK ---
-            # If target has strong model numbers (e.g. "XM5"), candidate MUST have them.
-            target_keywords = self._extract_essential_keywords(target)
-            if target_keywords:
-                offer_text_clean = re.sub(r'[^a-zA-Z0-9]', '', title.lower())
-                # Check if at least one essential keyword is present
-                # Actually, if we have specific model numbers, ideally ALL should be there? 
-                # Let's be semi-strict: if ANY strict model keyword (digit+char) is in target, 
-                # at least one of them must be in offer.
-                
-                # Refined: Check for important specific tokens
-                matches = 0
-                for kw in target_keywords:
-                    # Naively check if keyword is substring of cleaned offer
-                    # e.g. kw="xm5", offer="sony xm5 headphones" -> match
-                    if kw in title.lower(): # Check in raw title lower to avoid over-cleaning issues
-                        matches += 1
-                
-                if matches == 0 and len(target_keywords) > 0:
-                     return ProductClassification(
-                        item_id=offer.get('item_id', ''),
-                        title=title,
-                        is_comparable=False,
-                        is_accessory=False,
-                        is_bundle=False,
-                        confidence=0.98,
-                        reason=f"Keyword Mismatch: Missing essential terms {target_keywords} found in target."
-                    )
-            
-            # --- PRICE SAFETY CHECK ---
-            # If reference price exists (>0):
-            # 1. Lower Bound: If < 40% of ref, likely accessory/trash.
-            # 2. Upper Bound: If > 300% (3x) of ref, likely a huge bundle or wrong product.
-            if reference_price > 0 and price > 0:
-                ratio = price / reference_price
-                if ratio < 0.4:
-                    return ProductClassification(
-                        item_id=offer.get('item_id', ''),
-                        title=title,
-                        is_comparable=False,
-                        is_accessory=True,
-                        is_bundle=False,
-                        confidence=0.95,
-                        reason=f"Price Safety: ${price} is too low vs target ${reference_price} (Ratio: {ratio:.2f})"
-                    )
-                if ratio > 3.5:
-                     return ProductClassification(
-                        item_id=offer.get('item_id', ''),
-                        title=title,
-                        is_comparable=False,
-                        is_accessory=False,
-                        is_bundle=True, # Likely a big bundle
-                        confidence=0.95,
-                        reason=f"Price Safety: ${price} is too high vs target ${reference_price} (Ratio: {ratio:.2f})"
-                    )
-            
+            # Soft checks are informational only; no hard rejects here.
+
             # --- BUNDLE KEYWORD CHECK ---
             # If target is NOT a bundle, but offer says "Kit", "Pack", "Lote", reject it.
             # Heuristic: Target title key bundle words
@@ -388,10 +301,10 @@ class ProductMatchingAgent:
             offer_is_bundle = any(bk in title_lower for bk in bundle_keywords)
             
             if not target_is_bundle and offer_is_bundle:
-                 # Be careful, "Par" might be common. Let's stick to "Kit", "Lote", "Pack" for strictness
-                 strict_bundles = ["kit", "lote", "pack", "juego"]
-                 if any(sb in title_lower for sb in strict_bundles):
-                      return ProductClassification(
+                # Be careful: "Par" is common; only block strict bundle markers.
+                strict_bundles = ["kit", "lote", "pack", "juego"]
+                if any(sb in title_lower for sb in strict_bundles):
+                    return ProductClassification(
                         item_id=offer.get('item_id', ''),
                         title=title,
                         is_comparable=False,
@@ -609,10 +522,97 @@ Output JSON: { "classification": "comparable"|"accessory"|"bundle"|"not_comparab
         
         return state
     
+    @track_agent_execution("product_matching_validate_equivalence")
+    async def validate_equivalence(self, state: ProductMatchingState) -> ProductMatchingState:
+        """
+        Validate functional equivalence of comparable products.
+        
+        This node adds a second level of filtering to ensure that products
+        classified as comparable are TRULY functionally equivalent.
+        
+        Uses LLM to check:
+        - Same product category/function
+        - Specifications are compatible (±20% tolerance on key specs)
+        - Not artificially similar (e.g., "Soporte de pared" vs "Tripie portátil")
+        """
+        target_product = state["target_product"]
+        classified = state["classified_offers"]
+        
+        if not classified:
+            logger.info("No classified offers to validate")
+            return state
+        
+        # Filter to only classified comparable products
+        comparable_only = [c for c in classified if c.is_comparable]
+        
+        if not comparable_only:
+            logger.info("No comparable products to validate")
+            return state
+        
+        logger.info(
+            "Starting functional equivalence validation",
+            target=target_product,
+            candidates=len(comparable_only)
+        )
+        
+        # Build validation prompt
+        validation_prompt = f"""Eres un experto en validación de equivalencia funcional de productos.
+
+PRODUCTO REFERENCIA:
+{target_product}
+
+Tu tarea: Validar que cada producto candidato sea VERDADERAMENTE EQUIVALENTE funcionalmente.
+
+CRITERIOS DE EQUIVALENCIA:
+1. ¿Misma categoría de uso? (ej: ambos son trípies para bafle)
+2. ¿Especificaciones técnicas comparables? (±20% en dimensiones/capacidad)
+3. ¿Mismo segmento de mercado? (económico, medio, premium)
+4. ¿NO son variantes que cambien la función? (ej: instalación fija vs portátil)
+
+PRODUCTOS A VALIDAR:
+"""
+        
+        for i, candidate in enumerate(comparable_only, 1):
+            validation_prompt += f"\n{i}. {candidate.title} - Razón inicial: {candidate.reason}"
+        
+        try:
+            response = self.llm.invoke(validation_prompt + "\n\nDevuelve solo JSON con array de booleans indicando validez de cada producto.")
+            
+            # Parse response - expect array of booleans or confidence scores
+            import json
+            import re
+            
+            json_match = re.search(r'\[.*?\]', response.content, re.DOTALL)
+            if json_match:
+                validities = json.loads(json_match.group(0))
+                
+                # Update classified offers with equivalence validation
+                for candidate, is_valid in zip(comparable_only, validities):
+                    if isinstance(is_valid, bool):
+                        if not is_valid:
+                            candidate.is_comparable = False
+                            candidate.reason += " (Falló validación de equivalencia)"
+                    elif isinstance(is_valid, (int, float)):
+                        # If score < 0.7, mark as not comparable
+                        if is_valid < 0.7:
+                            candidate.is_comparable = False
+                            candidate.reason += f" (Equivalencia: {int(is_valid*100)}%)"
+                
+                logger.info(
+                    "Equivalence validation completed",
+                    validated=sum(1 for c in comparable_only if c.is_comparable)
+                )
+        
+        except Exception as e:
+            logger.warning(f"Equivalence validation failed: {e}. Keeping original classifications.")
+        
+        return state
+    
     @track_agent_execution("product_matching_filter")
     async def filter_comparable(self, state: ProductMatchingState) -> ProductMatchingState:
         """
         Filter to keep only comparable products.
+        Falls back to including best-price products if filtering is too aggressive.
         """
         classified = state["classified_offers"]
         raw_offers = state["raw_offers"]
@@ -626,6 +626,47 @@ Output JSON: { "classification": "comparable"|"accessory"|"bundle"|"not_comparab
             o for o in raw_offers
             if o['title'] in comparable_titles
         ]
+        
+        # FALLBACK: If too many products are filtered out, include top N by price proximity
+        if not comparable_offers and raw_offers:
+            logger.warning(
+                "⚠️ No comparable offers after filtering. Applying fallback strategy.",
+                total_offers=len(raw_offers),
+                comparable=0
+            )
+            
+            reference_price = state.get("reference_price", 0.0)
+            
+            # Sort by price proximity to reference
+            if reference_price > 0:
+                offers_with_distance = []
+                for o in raw_offers:
+                    try:
+                        price = float(o.get("price", 0))
+                        distance = abs(price - reference_price) / reference_price if reference_price else float('inf')
+                        offers_with_distance.append((o, distance))
+                    except:
+                        offers_with_distance.append((o, float('inf')))
+                
+                # Sort by distance and take top 10
+                offers_with_distance.sort(key=lambda x: x[1])
+                comparable_offers = [o[0] for o in offers_with_distance[:10]]
+                
+                logger.info(
+                    "✅ Fallback applied: Selected top 10 by price proximity",
+                    reference_price=reference_price,
+                    selected=len(comparable_offers),
+                    avg_distance_percent=round(
+                        sum(d for _, d in offers_with_distance[:10]) / 10 * 100, 2
+                    )
+                )
+            else:
+                # If no reference price, just take first 10
+                comparable_offers = raw_offers[:10]
+                logger.info(
+                    "✅ Fallback applied: Selected first 10 offers (no price reference)",
+                    selected=len(comparable_offers)
+                )
         
         state["comparable_offers"] = comparable_offers
         state["excluded_count"] = len(raw_offers) - len(comparable_offers)

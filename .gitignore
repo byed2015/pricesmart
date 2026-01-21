@@ -84,12 +84,18 @@ backups/
 Thumbs.db
 .DS_Store
 
-# Secrets
+# Secrets - CRITICAL: Never commit API keys or credentials
 secrets/
 *.pem
 *.key
 credentials.json
 ml_token.json
+openai_key.txt
+api_keys.txt
+.openai_api_key
+OPENAI_API_KEY
+config/secrets/
+.aws/
 
 # Project specific
 pricing_analysis*.json

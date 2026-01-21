@@ -66,7 +66,7 @@ def extract_product_info_from_url(url: str) -> Optional[Dict[str, str]]:
     return None
 
 
-def run_analysis_locally(product_name: str, cost: float, margin: float) -> Dict[str, Any]:
+def run_analysis_locally(product_name: str, cost: float, margin: float, price_tolerance: float = 0.30) -> Dict[str, Any]:
     """
     Run analysis locally using the agent modules directly.
     This is used when the backend API is not available.
@@ -89,13 +89,13 @@ def run_analysis_locally(product_name: str, cost: float, margin: float) -> Dict[
         async def run():
             pipeline = PricingPipeline()
             
-            # Run analysis
-            # Ensure we pass all args
+            # Run analysis with price_tolerance
             pipeline_result = await pipeline.analyze_product(
                 product_input=product_name,
                 max_offers=25,
                 cost_price=cost,
-                target_margin=margin
+                target_margin=margin,
+                price_tolerance=price_tolerance
             )
             
             # Extract Recommendation
@@ -237,14 +237,50 @@ def main():
         
         st.divider()
         
+        # Price tolerance filter
+        st.subheader("🎯 Filtros de Búsqueda")
+        
+        st.markdown("**Rango de precio de competidores:**")
+        price_tolerance_options = {
+            "±10% (Muy restrictivo)": 0.10,
+            "±20% (Restrictivo)": 0.20,
+            "±30% (Equilibrado) ⭐": 0.30,
+            "±40% (Amplio)": 0.40,
+            "±50% (Muy amplio)": 0.50,
+            "Sin filtro": 0.0
+        }
+        
+        price_tolerance_label = st.radio(
+            "Tolerancia de precio",
+            options=list(price_tolerance_options.keys()),
+            index=2,  # Default: ±30%
+            help="Limita los competidores a un rango de precio alrededor de tu producto. "
+                 "Ejemplo: Si tu producto cuesta $3,000 y eliges ±30%, solo se analizarán "
+                 "competidores entre $2,100 - $3,900. Esto reduce ruido de productos irrelevantes."
+        )
+        
+        price_tolerance = price_tolerance_options[price_tolerance_label]
+        
+        # Show calculated range if product has a price
+        if price_tolerance > 0:
+            st.caption(
+                f"💡 Se buscarán competidores con precios entre "
+                f"{int((1 - price_tolerance) * 1000):,} - "
+                f"{int((1 + price_tolerance) * 1000):,} MXN "
+                f"(asumiendo producto base de $1,000)"
+            )
+        
+        st.divider()
+        
         # Info section
         st.subheader("ℹ️ Información")
         st.caption("""
         **Cómo usar:**
         1. Ingresa un link de ML o nombre del producto
         2. Ajusta costo y margen deseado
-        3. Haz clic en Analizar
-        4. Obtén tu recomendación de precio
+        3. Configura el rango de búsqueda (±30% recomendado)
+        4. Haz clic en Analizar
+        5. Obtén tu recomendación de precio
         
         **Posicionamiento:**
         - 🟢 Budget: 25° percentil
@@ -335,7 +371,12 @@ def main():
                     # The pipeline handles URL detection internally!
                     input_to_pipeline = product_input if is_url else product_name
                     
-                    result = run_analysis_locally(input_to_pipeline, product_cost, target_margin)
+                    result = run_analysis_locally(
+                        input_to_pipeline, 
+                        product_cost, 
+                        target_margin,
+                        price_tolerance
+                    )
                     
                     if not result.get("success"):
                         st.error(f"❌ Error en el análisis: {result.get('error')}")

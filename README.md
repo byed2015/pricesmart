@@ -18,12 +18,16 @@ Este sistema automatiza todo ese análisis en 30 segundos.
 ## ✨ Características Clave
 
 - **💰 Calculadora Real 2026**: Desglose exacto de Comisiones ML, Envío (por peso), ISR e IVA.
+- **🎯 Recomendación de Precio Inteligente**: Con cálculo real de Ganancia Neta y ROI después de impuestos.
+- **📦 Catálogo Interno**: Dos modos de entrada (URL manual o selector de catálogo interno).
 - **🤖 Agentes de IA**:
-  - `Search Agent`: Encuentra cómo busca la gente tu producto.
-  - `Visual Matching Agent`: Compara imágenes para asegurar que los competidores sean idénticos al tuyo.
-  - `Pricing Agent`: Estratega de precios que sugiere valor óptimo.
-- **📊 Dashboard Interactivo**: Control total para incluir/excluir competidores manualmente.
-- **🚫 Filtrado de Basura**: Ignora automáticamente accesorios, repuestos o productos que no compiten contigo.
+  - `Data Enrichment Agent`: Extrae +10 especificaciones técnicas usando visión de GPT-4.
+  - `Search Strategy Agent`: Genera 5+ búsquedas inteligentes (no solo el título).
+  - `Visual Matching Agent`: Compara imágenes para asegurar que los competidores sean idénticos.
+  - `Pricing Intelligence Agent`: Estratega de precios con análisis de rentabilidad.
+- **📊 Dashboard Interactivo**: Control total con gráficos, estadísticas y clasificación de ofertas.
+- **🚫 Filtrado Inteligente**: Ignora accesorios, repuestos y productos fuera de rango.
+- **📈 Estadísticas Completas**: Media, mediana, desviación estándar, IQR y análisis de outliers.
 
 ## 🛠️ Instalación (3 Minutos)
 
@@ -54,18 +58,28 @@ cp .env.example .env
 ### Opción A: Dashboard Visual (Recomendado)
 Ejecuta la interfaz web:
 ```bash
-streamlit run frontend/dashboard.py
+streamlit run frontend/dashboard_simple.py --server.port 8504
 ```
-Abre `http://localhost:8501` en tu navegador.
+Abre `http://localhost:8504` en tu navegador.
 
-1. Pega el link de un producto de Mercado Libre.
+**Modos de Entrada:**
+1. **URL Manual**: Pega el link de un producto de Mercado Libre directamente.
+2. **Catálogo Interno**: Selecciona un producto del catálogo (se auto-llena el costo).
+
+**Flujo de Análisis:**
+1. Selecciona fuente (URL o Catálogo).
 2. Ingresa tu **Costo Real** (para calcular utilidad).
-3. ¡Analiza!
+3. Ajusta **Margen Objetivo** y **Tolerancia de Búsqueda**.
+4. ¡Analiza! El sistema:
+   - Busca +50 competidores
+   - Clasifica qué es comparable
+   - Calcula rentabilidad real (incluido envío, impuestos, comisiones)
+   - Sugiere precio óptimo con ROI
 
 ### Opción B: Script de Terminal
 Si prefieres línea de comandos:
 ```bash
-python scripts/demo_pivot_product.py
+python scripts/demo_data_enrichment.py
 ```
 
 ## 🏗️ Arquitectura Técnica
