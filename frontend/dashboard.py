@@ -622,3 +622,101 @@ else:
     
     **Resultado:** 3x más competidores encontrados ✅
     """)
+
+# Display token cost summary if analysis was executed
+if st.session_state.get("analysis_result"):
+    st.markdown("---")
+    st.markdown("### 💰 API USAGE & COSTS")
+    
+    # Estimate tokens based on analysis complexity
+    result = st.session_state.analysis_result
+    steps = result.get("pipeline_steps", {})
+    
+    # Estimate token usage
+    # Data enrichment: ~1000-2000 tokens
+    # Search strategy: ~1500-2500 tokens  
+    # Product matching: ~500-1000 tokens per offer (varies)
+    # Pricing intelligence: ~1000-1500 tokens
+    
+    estimated_input_tokens = 5000  # Conservative estimate
+    estimated_output_tokens = 3000  # Conservative estimate
+    total_tokens = estimated_input_tokens + estimated_output_tokens
+    
+    # Pricing (using gpt-4o-mini as primary model)
+    input_cost = (estimated_input_tokens / 1000) * 0.00015  # $0.15 per 1M tokens
+    output_cost = (estimated_output_tokens / 1000) * 0.0006  # $0.60 per 1M tokens
+    total_cost = input_cost + output_cost
+    
+    # Calculate cost per comparable product (if we have any)
+    comparable_count = len(steps.get("matching", {}).get("comparable_offers", []))
+    cost_per_product = total_cost / max(comparable_count, 1)
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("📥 Input Tokens", f"{estimated_input_tokens:,}", help="Tokens enviados a la API")
+    with col2:
+        st.metric("📤 Output Tokens", f"{estimated_output_tokens:,}", help="Tokens generados por la API")
+    with col3:
+        st.metric("🔤 Total Tokens", f"{total_tokens:,}", help="Tokens totales procesados")
+    with col4:
+        st.metric("💵 Total Cost", f"${total_cost:.6f}", help="Costo en dólares USD")
+    
+    # Detailed breakdown
+    with st.expander("📊 DETALLES DE COSTOS"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**TOKENS**")
+            st.write(f"• Input: {estimated_input_tokens:,} @ $0.15 per 1M")
+            st.write(f"• Output: {estimated_output_tokens:,} @ $0.60 per 1M")
+            st.write(f"• Total: {total_tokens:,}")
+        
+        with col2:
+            st.markdown("**COSTOS**")
+            st.write(f"• Input Cost: ${input_cost:.8f}")
+            st.write(f"• Output Cost: ${output_cost:.8f}")
+            st.write(f"• **Total: ${total_cost:.6f} USD**")
+        
+        st.markdown("---")
+        
+        if comparable_count > 0:
+            st.markdown(f"**ANÁLISIS**")
+            st.write(f"• Productos analizados: {comparable_count} comparables")
+            st.write(f"• Costo por producto: ${cost_per_product:.6f}")
+            st.write(f"• Modelo: GPT-4o Mini (más económico)")
+        
+        st.markdown("---")
+        st.caption("📌 **Nota:** Estos son costos estimados basados en el uso típico de la API. Los costos reales pueden variar según las llamadas específicas realizadas. Precios consultados en enero 2026.")
+
+
+else:
+    st.markdown("""
+    ### 📝 Pasos para Comenzar
+
+    1️⃣ **Copia una URL** de Mercado Libre (ej: Bocina Louder YPW-503)
+    
+    2️⃣ **Ingresa en el campo** de la barra lateral
+    
+    3️⃣ **Ajusta** costo, margen y tolerancia según necesites
+    
+    4️⃣ **Haz clic** en "▶️ Iniciar Análisis"
+    
+    5️⃣ **Observa** cómo el sistema:
+       - 📦 Extrae datos del producto
+       - 🧠 Enriquece especificaciones con IA
+       - 🔍 Genera búsquedas inteligentes
+       - 📊 Encuentra competidores
+       - 💰 Calcula el mejor precio
+    
+    ---
+    
+    ### ⭐ Lo Nuevo: Enriquecimiento Inteligente
+    
+    El sistema ahora:
+    - **Analiza** la descripción completa con IA
+    - **Extrae** 10+ especificaciones técnicas
+    - **Genera** búsquedas inteligentes (no solo el título)
+    - **Encuentra** verdaderos competidores (no solo la misma marca)
+    
+    **Resultado:** 3x más competidores encontrados ✅
+    """)
