@@ -278,24 +278,59 @@ if st.session_state.get("analysis_result"):
             matching = steps["matching"]
             st.markdown("### 🎯 Clasificación de Productos")
             
+            # Initialize session state for selections at the top of result display
+            if "products_to_exclude" not in st.session_state:
+                st.session_state.products_to_exclude = []
+            if "products_to_include" not in st.session_state:
+                st.session_state.products_to_include = []
+            
+            # FUNCIÓN: Reconstruir listas de productos basadas en selecciones del usuario
+            def rebuild_product_lists():
+                """Reconstruir comparable_offers y excluded_offers basado en user_selections"""
+                all_comparable = matching.get("comparable_offers", [])
+                all_excluded = matching.get("excluded_offers", [])
+                
+                # Obtener títulos de los seleccionados por usuario
+                included_titles = {p.get('title') for p in st.session_state.products_to_include}
+                excluded_titles = {p.get('title') for p in st.session_state.products_to_exclude}
+                
+                # Reconstruir listas
+                new_comparable = [
+                    p for p in all_comparable 
+                    if p.get('title') not in excluded_titles
+                ]
+                # Agregar los que el usuario movió a comparables desde excluidos
+                new_comparable.extend([
+                    p for p in all_excluded 
+                    if p.get('title') in included_titles
+                ])
+                
+                new_excluded = [
+                    p for p in all_excluded 
+                    if p.get('title') not in included_titles
+                ]
+                # Agregar los que el usuario movió a excluidos desde comparables
+                new_excluded.extend([
+                    p for p in all_comparable 
+                    if p.get('title') in excluded_titles
+                ])
+                
+                return new_comparable, new_excluded
+            
+            # Reconstruir las listas con las selecciones del usuario
+            comparable_data, excluded_data = rebuild_product_lists()
+            
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Total Ofertas", matching.get("total_offers", 0))
             with col2:
-                st.metric("✅ Comparables", matching.get("comparable", 0))
+                st.metric("✅ Comparables", len(comparable_data))
             with col3:
-                st.metric("❌ Excluidas", matching.get("excluded", 0))
+                st.metric("❌ Excluidas", len(excluded_data))
             
-        # Initialize session state for selections at the top of result display
-        if "products_to_exclude" not in st.session_state:
-            st.session_state.products_to_exclude = []
-        if "products_to_include" not in st.session_state:
-            st.session_state.products_to_include = []
-        
-        # Display all offers found with images and selection controls
-        if matching.get("comparable_offers"):
-            st.markdown("#### 📦 Productos Comparables (Seleccionados)")
-            comparable_data = matching.get("comparable_offers", [])
+            # Display all offers found with images and selection controls
+            if comparable_data:
+                st.markdown("#### 📦 Productos Comparables (Seleccionados)")
             
             for idx, product in enumerate(comparable_data):
                     col1, col2, col3 = st.columns([1, 6, 1])
@@ -333,9 +368,8 @@ if st.session_state.get("analysis_result"):
                     st.markdown("---")
             
         # Display excluded offers with reasons
-        if matching.get("excluded_offers"):
+        if excluded_data:
             st.markdown("#### ❌ Productos Excluidos")
-            excluded_data = matching.get("excluded_offers", [])
             
             for idx, product in enumerate(excluded_data):
                     col1, col2, col3 = st.columns([1, 6, 1])
