@@ -49,7 +49,7 @@ uv run python scripts/validate_implementation.py
 ✅ ALL VALIDATION CHECKS PASSED!
 Next steps:
 1. Load catalog: ✅
-2. Test frontend: http://localhost:8502
+2. Test frontend: http://localhost:8504
 3. Test API endpoint: POST /api/products/catalog/bulk-analyze
 ```
 
@@ -57,7 +57,7 @@ Next steps:
 
 ### **PARTE 2: Demo Frontend (3-5 minutos)**
 
-**Abrir:** http://localhost:8502
+**Abrir:** http://localhost:8504
 
 #### 2.1 Demostrar Controles de Price Tolerance
 1. En la sección "⚙️ Configuración" → "🎯 Filtros de Búsqueda"
@@ -360,7 +360,7 @@ PRECISIÓN: 95% (18/19 relevantes)
 ## ✅ Checklist Final Antes de Demo
 
 - [ ] CSV cargado (`13/13 productos`)
-- [ ] Frontend corriendo en `http://localhost:8502`
+- [ ] Frontend corriendo en `http://localhost:8504`
 - [ ] Backend corriendo en puerto `8000` (si vas a probar endpoint)
 - [ ] Validación de implementación pasada ✅
 - [ ] OpenAI API Key configurada

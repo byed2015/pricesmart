@@ -2,7 +2,7 @@
 
 ## URL del Dashboard
 ```
-http://localhost:8503
+http://localhost:8504
 ```
 
 ---
@@ -247,7 +247,7 @@ Tolerancia: ±30%
 
 ## ✅ LISTO PARA COMENZAR
 
-1. ✅ El dashboard está en **http://localhost:8503**
+1. ✅ El dashboard está en **http://localhost:8504**
 2. ✅ Ingresa un URL de producto
 3. ✅ Configura parámetros
 4. ✅ Haz clic en "▶️ Iniciar Análisis"

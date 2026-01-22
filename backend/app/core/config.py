@@ -51,6 +51,7 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:8000",
         "http://localhost:8501",
+        "http://localhost:8504",  # Dashboard simple
     ]
     
     class Config:

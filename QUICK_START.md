@@ -11,7 +11,7 @@ Tu aplicación de análisis de precios con **enriquecimiento inteligente de dato
 
 ### **Abre el Dashboard:**
 ```
-http://localhost:8503
+http://localhost:8504
 ```
 
 ### **Paso 1: Ingresa un Producto**
@@ -177,7 +177,7 @@ Resultado: Análisis de mercado PRECISO ✅
 ### Nuevos
 ```
 ✅ backend/app/agents/data_enricher.py          (DataEnricherAgent)
-✅ frontend/dashboard_enhanced.py               (Dashboard mejorado)
+✅ frontend/dashboard_simple.py                 (Dashboard unificado)
 ✅ scripts/demo_data_enrichment.py              (Script de demo)
 ✅ DASHBOARD_USAGE_GUIDE.md                     (Guía completa)
 ```
@@ -207,7 +207,7 @@ URL: https://www.mercadolibre.com.mx/bocina-louder-ypw-503-blanca/p/MLM51028270
 
 ## 📋 CHECKLIST DE VERIFICACIÓN
 
-- [ ] Dashboard abierto en http://localhost:8503
+- [ ] Dashboard abierto en http://localhost:8504
 - [ ] Ingresaste URL de producto
 - [ ] Configuraste parámetros (costo, margen, tolerancia)
 - [ ] Hiciste clic en "▶️ Iniciar Análisis"
@@ -222,7 +222,7 @@ URL: https://www.mercadolibre.com.mx/bocina-louder-ypw-503-blanca/p/MLM51028270
 ## 🆘 SI ALGO NO FUNCIONA
 
 1. **Dashboard no carga:**
-   - Verifica: http://localhost:8503
+   - Verifica: http://localhost:8504
    - Espera 5 segundos a que inicie Streamlit
 
 2. **Error al analizar:**

@@ -306,13 +306,14 @@ POST /api/products/catalog/bulk-analyze
 ---
 
 ### 9. **Dashboard Mejorado**
-**Archivo:** `frontend/dashboard.py`
+**Archivo:** `frontend/dashboard_simple.py`
 
 **Nuevos controles:**
 - 🎯 Radio buttons para tolerancia: ±10%, ±20%, ±30%, ±40%, ±50%, Sin filtro
 - 💡 Preview dinámico del rango calculado
 - 📊 Tooltips explicativos
 - 🔗 Integración automática con pipeline
+- 🔄 Sistema dual de entrada: URL Manual y Catálogo Interno
 
 **UI mejorada:**
 ```
@@ -416,7 +417,7 @@ sqlite3 louder_pricing.db "SELECT COUNT(*), category FROM products GROUP BY cate
 
 ### Paso 3: Ejecutar Frontend (ya está corriendo)
 ```
-Frontend: http://localhost:8502
+Frontend: http://localhost:8504
 ```
 
 ### Paso 4: Demostración de Búsqueda Inteligente
@@ -495,7 +496,7 @@ backend/
 │   │   └── scraper.py (✅ Mejorado - filtros de precio)
 │
 frontend/
-├── dashboard.py (✅ Mejorado - controles price_tolerance)
+├── dashboard_simple.py (✅ ÚNICO - controles price_tolerance + catálogo)
 
 scripts/
 └── load_catalog.py (✅ NUEVO - carga CSV)

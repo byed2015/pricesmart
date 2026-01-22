@@ -156,7 +156,7 @@ def main():
         print("=" * 60)
         print("\nNext steps:")
         print("1. Load catalog: uv run python scripts/load_catalog.py 'CSV_FILE'")
-        print("2. Test frontend: http://localhost:8502")
+        print("2. Test frontend: http://localhost:8504")
         print("3. Test API endpoint: POST /api/products/catalog/bulk-analyze")
         return 0
     else:

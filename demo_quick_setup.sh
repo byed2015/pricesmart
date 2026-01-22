@@ -28,11 +28,11 @@ else
 fi
 
 echo ""
-echo "3️⃣  Frontend ya está corriendo en http://localhost:8502"
+echo "3️⃣  Frontend ya está corriendo en http://localhost:8504"
 echo ""
 echo "4️⃣  Para probar el endpoint de análisis masivo:"
 echo "    curl -X POST 'http://localhost:8000/api/products/catalog/bulk-analyze' \\"
 echo "      -H 'Content-Type: application/json' \\"
 echo "      -d '{\"price_tolerance\": 0.30, \"skip_low_rotation\": true}'"
 echo ""
-echo "🎯 Demo lista! Abre http://localhost:8502 en tu navegador"
+echo "🎯 Demo lista! Abre http://localhost:8504 en tu navegador"
