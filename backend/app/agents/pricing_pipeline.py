@@ -27,6 +27,7 @@ import re
 
 from app.core.logging import get_logger
 from app.core.monitoring import track_agent_execution
+from app.core.token_costs import get_tracker, reset_tracker
 from app.services.commission_calculator import CommissionCalculator
 from app.mcp_servers.mercadolibre.scraper import MLWebScraper, ProductDetails
 from app.mcp_servers.mercadolibre.stats import get_price_recommendation_data
@@ -146,6 +147,9 @@ class PricingPipeline:
         This is the preferred method for branded products where you want to
         find similar items with different brands.
         """
+        # Reset token tracker for this analysis
+        reset_tracker()
+        
         logger.info(
             "Starting pricing analysis from product URL",
             url=product_url,
@@ -495,6 +499,18 @@ class PricingPipeline:
             logger.error(error_msg, exc_info=True)
             result["errors"].append(error_msg)
         
+        # Capture real token usage from tracker
+        tracker = get_tracker()
+        token_summary = tracker.get_summary()
+        result["token_usage"] = {
+            "input_tokens": token_summary["total_input_tokens"],
+            "output_tokens": token_summary["total_output_tokens"],
+            "total_tokens": token_summary["total_tokens"],
+            "total_cost_usd": token_summary["total_cost_usd"],
+            "cost_by_model": token_summary["cost_by_model"],
+            "api_calls": token_summary["total_calls"]
+        }
+        
         # Calculate duration
         duration = (datetime.now() - start_time).total_seconds()
         result["duration_seconds"] = duration
@@ -503,7 +519,10 @@ class PricingPipeline:
             "Pricing analysis completed",
             duration=duration,
             errors_count=len(result["errors"]),
-            has_recommendation=result["final_recommendation"] is not None
+            has_recommendation=result["final_recommendation"] is not None,
+            input_tokens=token_summary["total_input_tokens"],
+            output_tokens=token_summary["total_output_tokens"],
+            total_cost_usd=token_summary["total_cost_usd"]
         )
         
         return result
@@ -522,6 +541,9 @@ class PricingPipeline:
         Note: Without pivot product URL, price filtering cannot be applied.
         Consider using URL-based analysis for better results.
         """
+        # Reset token tracker for this analysis
+        reset_tracker()
+        
         logger.info(
             "Starting complete pricing analysis",
             product=product_description,
@@ -639,6 +661,18 @@ class PricingPipeline:
             logger.error(f"Pipeline error: {str(e)}", exc_info=True)
             result["errors"].append(f"Pipeline failure: {str(e)}")
         
+        # Capture real token usage from tracker
+        tracker = get_tracker()
+        token_summary = tracker.get_summary()
+        result["token_usage"] = {
+            "input_tokens": token_summary["total_input_tokens"],
+            "output_tokens": token_summary["total_output_tokens"],
+            "total_tokens": token_summary["total_tokens"],
+            "total_cost_usd": token_summary["total_cost_usd"],
+            "cost_by_model": token_summary["cost_by_model"],
+            "api_calls": token_summary["total_calls"]
+        }
+        
         # Calculate duration
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
@@ -648,7 +682,10 @@ class PricingPipeline:
             "Pricing analysis completed",
             duration=duration,
             has_recommendation=result["final_recommendation"] is not None,
-            errors_count=len(result["errors"])
+            errors_count=len(result["errors"]),
+            input_tokens=token_summary["total_input_tokens"],
+            output_tokens=token_summary["total_output_tokens"],
+            total_cost_usd=token_summary["total_cost_usd"]
         )
         
         return result

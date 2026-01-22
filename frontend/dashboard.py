@@ -628,53 +628,77 @@ if st.session_state.get("analysis_result"):
     st.markdown("---")
     st.markdown("### 💰 API USAGE & COSTS")
     
-    # Estimate tokens based on analysis complexity
+    # Get real or estimated tokens
     result = st.session_state.analysis_result
     steps = result.get("pipeline_steps", {})
     
-    # Estimate token usage
-    # Data enrichment: ~1000-2000 tokens
-    # Search strategy: ~1500-2500 tokens  
-    # Product matching: ~500-1000 tokens per offer (varies)
-    # Pricing intelligence: ~1000-1500 tokens
+    # Try to get actual token usage from tracker
+    token_data = result.get("token_usage", {})
     
-    estimated_input_tokens = 5000  # Conservative estimate
-    estimated_output_tokens = 3000  # Conservative estimate
-    total_tokens = estimated_input_tokens + estimated_output_tokens
-    
-    # Pricing (using gpt-4o-mini as primary model)
-    input_cost = (estimated_input_tokens / 1000) * 0.00015  # $0.15 per 1M tokens
-    output_cost = (estimated_output_tokens / 1000) * 0.0006  # $0.60 per 1M tokens
-    total_cost = input_cost + output_cost
+    if token_data and token_data.get("total_tokens", 0) > 0:
+        # Real tokens from API calls
+        input_tokens = token_data.get("input_tokens", 0)
+        output_tokens = token_data.get("output_tokens", 0)
+        total_tokens = token_data.get("total_tokens", 0)
+        total_cost = token_data.get("total_cost_usd", 0.0)
+        is_estimated = False
+        api_calls = token_data.get("api_calls", 0)
+    else:
+        # Fallback to conservative estimates if no token data
+        input_tokens = 5000
+        output_tokens = 3000
+        total_tokens = input_tokens + output_tokens
+        is_estimated = True
+        api_calls = 0
+        
+        # Calculate cost from estimates
+        input_cost = (input_tokens / 1000) * 0.00015
+        output_cost = (output_tokens / 1000) * 0.0006
+        total_cost = input_cost + output_cost
     
     # Calculate cost per comparable product (if we have any)
     comparable_count = len(steps.get("matching", {}).get("comparable_offers", []))
-    cost_per_product = total_cost / max(comparable_count, 1)
+    cost_per_product = total_cost / max(comparable_count, 1) if total_cost > 0 else 0
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("📥 Input Tokens", f"{estimated_input_tokens:,}", help="Tokens enviados a la API")
+        help_text = "Tokens enviados a la API (REAL)" if not is_estimated else "Tokens enviados a la API (ESTIMADO)"
+        st.metric("📥 Input Tokens", f"{input_tokens:,}", help=help_text)
     with col2:
-        st.metric("📤 Output Tokens", f"{estimated_output_tokens:,}", help="Tokens generados por la API")
+        help_text = "Tokens generados por la API (REAL)" if not is_estimated else "Tokens generados por la API (ESTIMADO)"
+        st.metric("📤 Output Tokens", f"{output_tokens:,}", help=help_text)
     with col3:
-        st.metric("🔤 Total Tokens", f"{total_tokens:,}", help="Tokens totales procesados")
+        help_text = "Tokens totales procesados (REAL)" if not is_estimated else "Tokens totales procesados (ESTIMADO)"
+        st.metric("🔤 Total Tokens", f"{total_tokens:,}", help=help_text)
     with col4:
-        st.metric("💵 Total Cost", f"${total_cost:.6f}", help="Costo en dólares USD")
+        help_text = f"Costo en dólares USD - {api_calls} llamadas a API" if not is_estimated else "Costo en dólares USD (ESTIMADO)"
+        st.metric("💵 Total Cost", f"${total_cost:.6f}", help=help_text)
     
     # Detailed breakdown
     with st.expander("📊 DETALLES DE COSTOS"):
+        if is_estimated:
+            st.info("⚠️ Estos son costos ESTIMADOS (sin integración real de API)")
+        else:
+            st.success("✅ Estos son costos REALES capturados de las llamadas a OpenAI API")
+        
         col1, col2 = st.columns(2)
         
         with col1:
             st.markdown("**TOKENS**")
-            st.write(f"• Input: {estimated_input_tokens:,} @ $0.15 per 1M")
-            st.write(f"• Output: {estimated_output_tokens:,} @ $0.60 per 1M")
-            st.write(f"• Total: {total_tokens:,}")
+            st.write(f"• Input: {input_tokens:,} tokens")
+            st.write(f"• Output: {output_tokens:,} tokens")
+            st.write(f"• Total: {total_tokens:,} tokens")
+            if not is_estimated and api_calls > 0:
+                st.write(f"• Llamadas API: {api_calls}")
         
         with col2:
             st.markdown("**COSTOS**")
-            st.write(f"• Input Cost: ${input_cost:.8f}")
-            st.write(f"• Output Cost: ${output_cost:.8f}")
+            if not is_estimated:
+                # Show actual cost breakdown if we have it
+                input_cost = (input_tokens / 1000) * 0.00015
+                output_cost = (output_tokens / 1000) * 0.0006
+                st.write(f"• Input Cost: ${input_cost:.8f}")
+                st.write(f"• Output Cost: ${output_cost:.8f}")
             st.write(f"• **Total: ${total_cost:.6f} USD**")
         
         st.markdown("---")
@@ -683,10 +707,19 @@ if st.session_state.get("analysis_result"):
             st.markdown(f"**ANÁLISIS**")
             st.write(f"• Productos analizados: {comparable_count} comparables")
             st.write(f"• Costo por producto: ${cost_per_product:.6f}")
-            st.write(f"• Modelo: GPT-4o Mini (más económico)")
+            st.write(f"• Modelo principal: GPT-4o Mini")
         
         st.markdown("---")
-        st.caption("📌 **Nota:** Estos son costos estimados basados en el uso típico de la API. Los costos reales pueden variar según las llamadas específicas realizadas. Precios consultados en enero 2026.")
+        
+        if token_data and token_data.get("cost_by_model"):
+            st.markdown("**DESGLOSE POR MODELO**")
+            for model_id, model_data in token_data["cost_by_model"].items():
+                st.write(f"**{model_data.get('model_name', model_id)}**")
+                st.write(f"  • Tokens: {model_data['total_tokens']:,} ({model_data['input_tokens']:,}→{model_data['output_tokens']:,})")
+                st.write(f"  • Costo: ${model_data['cost_usd']:.8f}")
+        
+        st.markdown("---")
+        st.caption("📌 **Nota:** Los costos reales se capturan automáticamente de las llamadas a OpenAI API. Precios consultados en enero 2026.")
 
 
 else:
