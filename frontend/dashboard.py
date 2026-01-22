@@ -147,6 +147,10 @@ with st.sidebar:
         key="analyze_btn"
     )
 
+# Initialize session state for analysis result
+if "analysis_result" not in st.session_state:
+    st.session_state.analysis_result = None
+
 # Main content
 if product_url and analyze_button:
     st.info("⏳ Analizando producto...")
@@ -173,17 +177,32 @@ if product_url and analyze_button:
         
         result = asyncio.run(run_analysis())
         
-        # Debug: Show raw result structure
-        with st.expander("🔧 Debug Info"):
-            st.write(f"Has final_recommendation: {bool(result.get('final_recommendation'))}")
-            st.write(f"Has pipeline_steps: {'pipeline_steps' in result}")
-            st.write(f"Duration: {result.get('duration_seconds', 0):.2f}s")
-            if 'errors' in result:
-                st.write(f"Errors: {result.get('errors')}")
-        
-        # Display results - check for final_recommendation instead of status
-        if result.get("final_recommendation") is not None and not result.get("errors"):
-            st.success("✅ Análisis Completado")
+        # Save result to session state
+        st.session_state.analysis_result = result
+        # Clear any previous selections
+        st.session_state.products_to_exclude = []
+        st.session_state.products_to_include = []
+    
+    except Exception as e:
+        st.error(f"❌ Error: {e}")
+        import traceback
+        st.code(traceback.format_exc())
+
+# Display results from session state
+if st.session_state.get("analysis_result"):
+    result = st.session_state.analysis_result
+    
+    # Debug: Show raw result structure
+    with st.expander("🔧 Debug Info"):
+        st.write(f"Has final_recommendation: {bool(result.get('final_recommendation'))}")
+        st.write(f"Has pipeline_steps: {'pipeline_steps' in result}")
+        st.write(f"Duration: {result.get('duration_seconds', 0):.2f}s")
+        if 'errors' in result:
+            st.write(f"Errors: {result.get('errors')}")
+    
+    # Display results - check for final_recommendation instead of status
+    if result.get("final_recommendation") is not None and not result.get("errors"):
+        st.success("✅ Análisis Completado")
             
             # Display steps
             st.markdown("### 📊 Resultados del Análisis")
@@ -486,11 +505,6 @@ if product_url and analyze_button:
             else:
                 st.error("❌ Error desconocido: Sin recomendación ni errores registrados")
                 st.write("Resultado completo:", result)
-    
-    except Exception as e:
-        st.error(f"❌ Error en la ejecución: {str(e)}")
-        import traceback
-        st.code(traceback.format_exc(), language="python")
 
 else:
     st.markdown("""
