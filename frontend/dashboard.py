@@ -247,27 +247,95 @@ if product_url and analyze_button:
                 with col3:
                     st.metric("❌ Excluidas", matching.get("excluded", 0))
                 
-                # Display all offers found
+                # Display all offers found with images and selection controls
                 if matching.get("comparable_offers"):
                     st.markdown("#### 📦 Productos Comparables (Seleccionados)")
                     comparable_data = matching.get("comparable_offers", [])
-                    comparable_df = pd.DataFrame(comparable_data)
-                    if not comparable_df.empty:
-                        # Format columns
-                        if "price" in comparable_df.columns:
-                            comparable_df["price"] = comparable_df["price"].apply(lambda x: f"${x:,.0f}")
-                        st.dataframe(comparable_df, width="stretch", hide_index=True)
+                    
+                    # Store selections in session state
+                    if "products_to_exclude" not in st.session_state:
+                        st.session_state.products_to_exclude = []
+                    
+                    for idx, product in enumerate(comparable_data):
+                        col1, col2, col3 = st.columns([1, 6, 1])
+                        
+                        with col1:
+                            # Show thumbnail
+                            if product.get("thumbnail"):
+                                st.image(product["thumbnail"], width=80)
+                            else:
+                                st.write("🖼️")
+                        
+                        with col2:
+                            # Product details
+                            st.markdown(f"**{product.get('title', 'Sin título')}**")
+                            price_str = f"${product.get('price', 0):,.0f}"
+                            condition = product.get('condition', 'N/A')
+                            st.caption(f"💰 {price_str} | 📦 {condition}")
+                            if product.get('permalink'):
+                                st.caption(f"🔗 [Ver en ML]({product['permalink']})")
+                        
+                        with col3:
+                            # Button to move to excluded
+                            key = f"exclude_{idx}"
+                            if st.button("❌", key=key, help="Mover a excluidos"):
+                                if product not in st.session_state.products_to_exclude:
+                                    st.session_state.products_to_exclude.append(product)
+                                    st.rerun()
+                        
+                        st.markdown("---")
                 
                 # Display excluded offers with reasons
                 if matching.get("excluded_offers"):
                     st.markdown("#### ❌ Productos Excluidos")
                     excluded_data = matching.get("excluded_offers", [])
-                    if excluded_data:
-                        excluded_df = pd.DataFrame(excluded_data)
-                        if not excluded_df.empty:
-                            if "price" in excluded_df.columns:
-                                excluded_df["price"] = excluded_df["price"].apply(lambda x: f"${x:,.0f}")
-                            st.dataframe(excluded_df, width="stretch", hide_index=True)
+                    
+                    # Store selections in session state
+                    if "products_to_include" not in st.session_state:
+                        st.session_state.products_to_include = []
+                    
+                    for idx, product in enumerate(excluded_data):
+                        col1, col2, col3 = st.columns([1, 6, 1])
+                        
+                        with col1:
+                            # Show thumbnail
+                            if product.get("thumbnail"):
+                                st.image(product["thumbnail"], width=80)
+                            else:
+                                st.write("🖼️")
+                        
+                        with col2:
+                            # Product details
+                            st.markdown(f"**{product.get('title', 'Sin título')}**")
+                            price_str = f"${product.get('price', 0):,.0f}"
+                            reason = product.get('exclusion_reason', 'N/A')
+                            st.caption(f"💰 {price_str} | 🚫 {reason}")
+                            if product.get('permalink'):
+                                st.caption(f"🔗 [Ver en ML]({product['permalink']})")
+                        
+                        with col3:
+                            # Button to move to comparable
+                            key = f"include_{idx}"
+                            if st.button("✅", key=key, help="Mover a comparables"):
+                                if product not in st.session_state.products_to_include:
+                                    st.session_state.products_to_include.append(product)
+                                    st.rerun()
+                        
+                        st.markdown("---")
+                
+                # Button to re-run analysis with new selections
+                if st.session_state.get("products_to_exclude") or st.session_state.get("products_to_include"):
+                    st.markdown("### 🔄 Modificaciones Pendientes")
+                    col1, col2 = st.columns([2, 1])
+                    with col1:
+                        st.info(f"✅ {len(st.session_state.get('products_to_include', []))} producto(s) a incluir | ❌ {len(st.session_state.get('products_to_exclude', []))} a excluir")
+                    with col2:
+                        if st.button("🔄 Re-ejecutar Análisis", type="primary"):
+                            # Here you would need to modify the result with new selections
+                            st.warning("⚠️ Funcionalidad en desarrollo: Re-ejecutar con selecciones manuales")
+                            # Clear session state
+                            st.session_state.products_to_exclude = []
+                            st.session_state.products_to_include = []
             
             # Step 5: Statistics with charts
             if "statistics" in steps:

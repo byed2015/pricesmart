@@ -306,7 +306,7 @@ POST /api/products/catalog/bulk-analyze
 ---
 
 ### 9. **Dashboard Mejorado**
-**Archivo:** `frontend/dashboard_simple.py`
+**Archivo:** `frontend/dashboard.py`
 
 **Nuevos controles:**
 - 🎯 Radio buttons para tolerancia: ±10%, ±20%, ±30%, ±40%, ±50%, Sin filtro
@@ -496,7 +496,7 @@ backend/
 │   │   └── scraper.py (✅ Mejorado - filtros de precio)
 │
 frontend/
-├── dashboard_simple.py (✅ ÚNICO - controles price_tolerance + catálogo)
+├── dashboard.py (✅ ÚNICO - controles price_tolerance + catálogo)
 
 scripts/
 └── load_catalog.py (✅ NUEVO - carga CSV)

@@ -37,7 +37,7 @@
 - Mejora de .gitignore para proteger API keys (OPENAI_API_KEY)
 - Documentación de archivos nuevos:
   - `backend/app/services/catalog_service.py`: Singleton para catálogo
-  - `frontend/dashboard_simple.py`: Dashboard mejorado con dual input
+  - `frontend/dashboard.py`: Dashboard mejorado con dual input
   - `backend/data/productos_catalogo.csv`: Catálogo interno (12 productos)
 
 ### 🔄 Cambios Internos
@@ -53,7 +53,7 @@
   - Métodos: `get_all_products()`, `search_products()`, `get_product_by_id()`
   - Patrón Singleton para única instancia por aplicación
 
-- **Frontend** (`dashboard_simple.py`):
+- **Frontend** (`dashboard.py`):
   - Radio selector para elegir fuente (URL Manual / Catálogo Interno)
   - Integración con CatalogService para cargar y filtrar productos
   - Expander para detalles de producto seleccionado

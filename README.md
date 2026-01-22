@@ -58,7 +58,7 @@ cp .env.example .env
 ### Opción A: Dashboard Visual (Recomendado)
 Ejecuta la interfaz web:
 ```bash
-streamlit run frontend/dashboard_simple.py --server.port 8504
+streamlit run frontend/dashboard.py --server.port 8504
 ```
 Abre `http://localhost:8504` en tu navegador.
 

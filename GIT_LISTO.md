@@ -36,7 +36,7 @@ f1deb4f docs: Deployment checklist & security verification
 |---------|------------------|
 | `backend/app/agents/pricing_intelligence.py` | +2 campos (profit_per_unit, roi_percent) |
 | `backend/app/agents/pricing_pipeline.py` | Enriquecimiento de recommendation con profitabilidad |
-| `frontend/dashboard_simple.py` | Dual input + CatalogService + min_value=1.0 |
+| `frontend/dashboard.py` | Dual input + CatalogService + min_value=1.0 |
 | `backend/app/services/catalog_service.py` | ✨ NUEVO - Servicio de catálogo |
 | `backend/data/productos_catalogo.csv` | ✨ NUEVO - 12 productos internos |
 
@@ -139,7 +139,7 @@ pip install -r requirements.txt
 $env:OPENAI_API_KEY="sk-..."
 
 # 4. Ejecutar
-streamlit run frontend/dashboard_simple.py --server.port 8504
+streamlit run frontend/dashboard.py --server.port 8504
 
 # 5. ¡Usa el dashboard!
 # - Selecciona "Catálogo Interno"

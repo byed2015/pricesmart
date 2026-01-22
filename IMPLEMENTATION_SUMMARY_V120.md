@@ -74,7 +74,7 @@ class CatalogService:
 
 ### 3. 🎨 Dashboard Mejorado con Dual Input
 
-**Archivo:** `frontend/dashboard_simple.py`
+**Archivo:** `frontend/dashboard.py`
 
 **Nuevas Características:**
 
@@ -165,7 +165,7 @@ config/secrets/         ← Nuevo
 |---------|---------|--------|
 | `backend/app/agents/pricing_intelligence.py` | +2 campos a PricingRecommendation | L37-48 |
 | `backend/app/agents/pricing_pipeline.py` | Enriquecimiento recommendation | L444-474 |
-| `frontend/dashboard_simple.py` | CatalogService, dual input, min_value=1.0 | L1-145 |
+| `frontend/dashboard.py` | CatalogService, dual input, min_value=1.0 | L1-145 |
 | `.gitignore` | Protecciones API keys mejoradas | L45-52 |
 | `README.md` | Nuevas características, modo catálogo | L14-50 |
 

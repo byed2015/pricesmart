@@ -52,7 +52,7 @@
 ```
 📝 backend/app/agents/pricing_intelligence.py   +2 campos (profit_per_unit, roi_percent)
 📝 backend/app/agents/pricing_pipeline.py       Enriquecimiento recommendation
-📝 frontend/dashboard_simple.py                 Dual input, CatalogService, min_value=1.0
+📝 frontend/dashboard.py                 Dual input, CatalogService, min_value=1.0
 📝 README.md                                     Nuevas características
 📝 .gitignore                                    Protecciones API keys mejoradas
 ```
@@ -104,7 +104,7 @@ pip install -r requirements.txt
 export OPENAI_API_KEY=sk-...
 
 # 4. Ejecutar
-streamlit run frontend/dashboard_simple.py --server.port 8504
+streamlit run frontend/dashboard.py --server.port 8504
 ```
 
 **Resultado:** Dashboard con:

@@ -177,7 +177,7 @@ Resultado: Análisis de mercado PRECISO ✅
 ### Nuevos
 ```
 ✅ backend/app/agents/data_enricher.py          (DataEnricherAgent)
-✅ frontend/dashboard_simple.py                 (Dashboard unificado)
+✅ frontend/dashboard.py                 (Dashboard unificado)
 ✅ scripts/demo_data_enrichment.py              (Script de demo)
 ✅ DASHBOARD_USAGE_GUIDE.md                     (Guía completa)
 ```

@@ -67,7 +67,7 @@ set OPENAI_API_KEY=sk-...
 
 ### 3. Ejecutar Dashboard
 ```bash
-streamlit run frontend/dashboard_simple.py --server.port 8504
+streamlit run frontend/dashboard.py --server.port 8504
 ```
 
 Abre: `http://localhost:8504`
@@ -109,7 +109,7 @@ git check-ignore -v *.env .env.local OPENAI_API_KEY
 
 | Archivo | Propósito |
 |---------|-----------|
-| `frontend/dashboard_simple.py` | Dashboard Streamlit mejorado |
+| `frontend/dashboard.py` | Dashboard Streamlit mejorado |
 | `backend/app/services/catalog_service.py` | Gestor de catálogo CSV |
 | `backend/data/productos_catalogo.csv` | Datos internos 12 productos |
 | `backend/app/agents/pricing_intelligence.py` | Agente con campos de profitabilidad |
@@ -151,7 +151,7 @@ python --version  # Debe ser 3.10+
 pip install --upgrade streamlit
 
 # Ejecutar con debug
-streamlit run frontend/dashboard_simple.py --logger.level=debug
+streamlit run frontend/dashboard.py --logger.level=debug
 ```
 
 ### API Key Error
