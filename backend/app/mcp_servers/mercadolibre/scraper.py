@@ -780,17 +780,60 @@ class MLWebScraper:
                     except:
                         pass
             
-            # 3. Extract Image
+            # 3. Extract Image with multiple fallbacks
             image_url = None
-            # Try meta tag first
+            
+            # Method 1: Try meta tag og:image (Open Graph)
             meta_image = soup.find('meta', property='og:image')
             if meta_image:
                 image_url = meta_image['content']
             
+            # Method 2: Try meta tag twitter:image
+            if not image_url:
+                meta_twitter = soup.find('meta', attrs={'name': 'twitter:image'})
+                if meta_twitter:
+                    image_url = meta_twitter.get('content')
+            
+            # Method 3: Try main gallery image selectors
             if not image_url:
                 img_tag = soup.select_one('.ui-pdp-gallery__figure img')
                 if img_tag:
                     image_url = img_tag.get('src') or img_tag.get('data-src')
+            
+            # Method 4: Try different gallery selector
+            if not image_url:
+                img_tag = soup.select_one('img[alt*="imagen"]') or soup.select_one('img[alt*="producto"]')
+                if img_tag:
+                    image_url = img_tag.get('src') or img_tag.get('data-src')
+            
+            # Method 5: Try any image in gallery/pictures container
+            if not image_url:
+                gallery = soup.select_one('[class*="gallery"]') or soup.select_one('[class*="carousel"]')
+                if gallery:
+                    img_tag = gallery.select_one('img')
+                    if img_tag:
+                        image_url = img_tag.get('src') or img_tag.get('data-src')
+            
+            # Method 6: Try first significant image tag in main content
+            if not image_url:
+                main_content = soup.select_one('main') or soup.select_one('[role="main"]')
+                if main_content:
+                    img_tags = main_content.select('img')
+                    for img_tag in img_tags:
+                        src = img_tag.get('src') or img_tag.get('data-src')
+                        # Avoid small icons/logos
+                        if src and ('thumb' in src.lower() or 'product' in src.lower() or 'item' in src.lower()):
+                            image_url = src
+                            break
+            
+            # Method 7: Last resort - any img with src that looks like a product image
+            if not image_url:
+                for img_tag in soup.find_all('img'):
+                    src = img_tag.get('src') or ''
+                    # Filter out tracking pixels and tiny images
+                    if src and len(src) > 50 and 'tracking' not in src.lower() and 'pixel' not in src.lower():
+                        image_url = src
+                        break
 
             # 4. Extract Product ID from URL
             product_id = ""
@@ -861,12 +904,27 @@ class MLWebScraper:
                         if name and value:
                             attributes[name] = value
             
-            # Extract images
+            # Extract images with multiple fallback paths
             images = []
+            
+            # Method 1: Try "pictures" array (primary source)
             if "pictures" in product_data:
                 for pic in product_data.get("pictures", []):
                     if isinstance(pic, dict) and "url" in pic:
                         images.append(pic["url"])
+            
+            # Method 2: Try "thumbnail" field
+            if not images and "thumbnail" in product_data:
+                thumb = product_data.get("thumbnail")
+                if thumb:
+                    images.append(thumb)
+            
+            # Method 3: Try "image" or "image_url" fields
+            if not images:
+                for field in ["image", "image_url", "main_picture"]:
+                    if field in product_data and product_data.get(field):
+                        images.append(product_data.get(field))
+                        break
             
             return ProductDetails(
                 product_id=product_data.get("id", ""),
