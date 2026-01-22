@@ -645,6 +645,10 @@ class MLWebScraper:
                  if search_res and search_res.offers:
                      best_match = search_res.offers[0]
                      logger.info(f"Search Bypass Success: Found {best_match.title}")
+                     # Try to get image from the search result
+                     image_url = best_match.image_url if best_match.image_url else None
+                     if image_url:
+                         image_url = self._normalize_image_url(image_url)
                      return ProductDetails(
                         product_id=product_id,
                         title=best_match.title,
@@ -656,10 +660,10 @@ class MLWebScraper:
                         category=None,
                         attributes={},
                         description="Extracted via Search Bypass (PDP Blocked)",
-                        images=[], # Search view usually doesn't give high-res images directly
+                        images=[image_url] if image_url else [],
                         seller_name=None,
                         permalink=best_match.url or product_url,
-                        image_url=None
+                        image_url=image_url
                      )
              except Exception as e:
                  logger.warning(f"Search Bypass failed: {e}")
@@ -786,25 +790,29 @@ class MLWebScraper:
             # Method 1: Try meta tag og:image (Open Graph)
             meta_image = soup.find('meta', property='og:image')
             if meta_image:
-                image_url = meta_image['content']
+                image_url = self._normalize_image_url(meta_image['content'])
             
             # Method 2: Try meta tag twitter:image
             if not image_url:
                 meta_twitter = soup.find('meta', attrs={'name': 'twitter:image'})
                 if meta_twitter:
-                    image_url = meta_twitter.get('content')
+                    image_url = self._normalize_image_url(meta_twitter.get('content'))
             
             # Method 3: Try main gallery image selectors
             if not image_url:
                 img_tag = soup.select_one('.ui-pdp-gallery__figure img')
                 if img_tag:
-                    image_url = img_tag.get('src') or img_tag.get('data-src')
+                    src = img_tag.get('src') or img_tag.get('data-src')
+                    if src:
+                        image_url = self._normalize_image_url(src)
             
             # Method 4: Try different gallery selector
             if not image_url:
                 img_tag = soup.select_one('img[alt*="imagen"]') or soup.select_one('img[alt*="producto"]')
                 if img_tag:
-                    image_url = img_tag.get('src') or img_tag.get('data-src')
+                    src = img_tag.get('src') or img_tag.get('data-src')
+                    if src:
+                        image_url = self._normalize_image_url(src)
             
             # Method 5: Try any image in gallery/pictures container
             if not image_url:
@@ -812,7 +820,9 @@ class MLWebScraper:
                 if gallery:
                     img_tag = gallery.select_one('img')
                     if img_tag:
-                        image_url = img_tag.get('src') or img_tag.get('data-src')
+                        src = img_tag.get('src') or img_tag.get('data-src')
+                        if src:
+                            image_url = self._normalize_image_url(src)
             
             # Method 6: Try first significant image tag in main content
             if not image_url:
@@ -823,7 +833,7 @@ class MLWebScraper:
                         src = img_tag.get('src') or img_tag.get('data-src')
                         # Avoid small icons/logos
                         if src and ('thumb' in src.lower() or 'product' in src.lower() or 'item' in src.lower()):
-                            image_url = src
+                            image_url = self._normalize_image_url(src)
                             break
             
             # Method 7: Last resort - any img with src that looks like a product image
@@ -832,7 +842,7 @@ class MLWebScraper:
                     src = img_tag.get('src') or ''
                     # Filter out tracking pixels and tiny images
                     if src and len(src) > 50 and 'tracking' not in src.lower() and 'pixel' not in src.lower():
-                        image_url = src
+                        image_url = self._normalize_image_url(src)
                         break
 
             # 4. Extract Product ID from URL
@@ -875,6 +885,24 @@ class MLWebScraper:
             logger.error(f"Error extracting details from HTML: {e}")
             return None
     
+    def _normalize_image_url(self, img_url: str) -> str:
+        """Normalize image URL to ensure it's absolute and valid."""
+        if not img_url:
+            return None
+            
+        # If already absolute, return as is
+        if img_url.startswith('http://') or img_url.startswith('https://'):
+            return img_url
+            
+        # If relative, make absolute with mercadolibre domain
+        if img_url.startswith('//'):
+            return 'https:' + img_url
+        elif img_url.startswith('/'):
+            return 'https://www.mercadolibre.com.mx' + img_url
+        
+        # Otherwise, assume it's a complete URL without scheme
+        return 'https://' + img_url if not img_url.startswith('http') else img_url
+    
     def _extract_details_from_state(self, state: dict, url: str) -> Optional[ProductDetails]:
         """Extract product details from __PRELOADED_STATE__."""
         try:
@@ -911,20 +939,30 @@ class MLWebScraper:
             if "pictures" in product_data:
                 for pic in product_data.get("pictures", []):
                     if isinstance(pic, dict) and "url" in pic:
-                        images.append(pic["url"])
+                        img_url = pic["url"]
+                        if img_url:
+                            images.append(self._normalize_image_url(img_url))
             
             # Method 2: Try "thumbnail" field
             if not images and "thumbnail" in product_data:
                 thumb = product_data.get("thumbnail")
                 if thumb:
-                    images.append(thumb)
+                    images.append(self._normalize_image_url(thumb))
             
             # Method 3: Try "image" or "image_url" fields
             if not images:
                 for field in ["image", "image_url", "main_picture"]:
                     if field in product_data and product_data.get(field):
-                        images.append(product_data.get(field))
+                        img_url = product_data.get(field)
+                        if img_url:
+                            images.append(self._normalize_image_url(img_url))
                         break
+            
+            # Get first valid image URL (filter out tracking pixels)
+            image_url = None
+            if images:
+                valid_images = [img for img in images if img and 'pixel' not in img.lower() and 'tracker' not in img.lower()]
+                image_url = valid_images[0] if valid_images else None
             
             return ProductDetails(
                 product_id=product_data.get("id", ""),
@@ -940,7 +978,7 @@ class MLWebScraper:
                 images=images,
                 seller_name=product_data.get("seller", {}).get("nickname") if isinstance(product_data.get("seller"), dict) else None,
                 permalink=url,
-                image_url=images[0] if images else None
+                image_url=image_url
             )
         except Exception as e:
             logger.error(f"Error extracting from state: {e}")

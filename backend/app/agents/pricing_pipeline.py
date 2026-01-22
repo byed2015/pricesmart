@@ -298,7 +298,18 @@ class PricingPipeline:
             }
             
             if not all_offers:
-                error_msg = "No offers found"
+                # Create a friendly message based on whether price filtering was applied
+                if price_min and price_max:
+                    error_msg = (
+                        f"No se encontraron productos en el rango de precios seleccionado "
+                        f"(${int(price_min):,} - ${int(price_max):,} MXN). "
+                        f"Intenta ampliar el rango de tolerancia o los parámetros de búsqueda."
+                    )
+                else:
+                    error_msg = (
+                        f"No se encontraron productos en el mercado. "
+                        f"Intenta ajustar los términos de búsqueda o el rango de precios."
+                    )
                 logger.warning(error_msg)
                 result["errors"].append(error_msg)
                 return result
