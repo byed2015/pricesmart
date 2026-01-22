@@ -194,13 +194,32 @@ if product_url and analyze_button:
             if "pivot_product" in steps:
                 with st.expander("✅ Paso 0: Producto Analizado", expanded=True):
                     pivot = steps["pivot_product"]
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Título", pivot.get("title", "N/A")[:40])
-                    with col2:
-                        st.metric("Precio", f"${pivot.get('price', 0):,.0f}")
-                    with col3:
-                        st.metric("Marca", pivot.get("brand", "N/A"))
+                    
+                    # Create columns for image and details
+                    img_col, details_col = st.columns([1, 3])
+                    
+                    with img_col:
+                        # Show product image
+                        image_url = pivot.get("image_url") or pivot.get("thumbnail")
+                        if image_url:
+                            st.image(image_url, width=150, caption="Producto")
+                        else:
+                            st.markdown("### 📸")
+                            st.caption("Sin imagen")
+                    
+                    with details_col:
+                        st.markdown(f"**🎯 {pivot.get('title', 'N/A')}**")
+                        
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("💵 Precio", f"${pivot.get('price', 0):,.0f}")
+                        with col2:
+                            st.metric("🏷️ Marca", pivot.get("brand", "N/A"))
+                        with col3:
+                            st.metric("📦 Condición", pivot.get("condition", "N/A").title())
+                        
+                        if pivot.get('permalink'):
+                            st.markdown(f"🔗 [Ver en Mercado Libre]({pivot['permalink']})")
             
             # Step 1: Data enrichment
             if "enrichment" in steps:
@@ -260,9 +279,13 @@ if product_url and analyze_button:
                         col1, col2, col3 = st.columns([1, 6, 1])
                         
                         with col1:
-                            # Show thumbnail
-                            if product.get("thumbnail"):
-                                st.image(product["thumbnail"], width=80)
+                            # Show thumbnail - usar image_url en lugar de thumbnail
+                            image_url = product.get("image_url") or product.get("thumbnail")
+                            if image_url:
+                                try:
+                                    st.image(image_url, width=80)
+                                except Exception as e:
+                                    st.write("🖼️")
                             else:
                                 st.write("🖼️")
                         
@@ -298,9 +321,13 @@ if product_url and analyze_button:
                         col1, col2, col3 = st.columns([1, 6, 1])
                         
                         with col1:
-                            # Show thumbnail
-                            if product.get("thumbnail"):
-                                st.image(product["thumbnail"], width=80)
+                            # Show thumbnail - usar image_url en lugar de thumbnail
+                            image_url = product.get("image_url") or product.get("thumbnail")
+                            if image_url:
+                                try:
+                                    st.image(image_url, width=80)
+                                except Exception as e:
+                                    st.write("🖼️")
                             else:
                                 st.write("🖼️")
                         
