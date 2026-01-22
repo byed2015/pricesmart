@@ -134,7 +134,8 @@ with st.sidebar:
         min_value=10,
         max_value=50,
         value=30,
-        step=5
+        step=5,
+        help="Aumentar rango permite encontrar MÁS productos en el rango de precio ↑"
     )
     
     st.markdown("---")
@@ -285,16 +286,18 @@ if st.session_state.get("analysis_result"):
             with col3:
                 st.metric("❌ Excluidas", matching.get("excluded", 0))
             
-            # Display all offers found with images and selection controls
-            if matching.get("comparable_offers"):
-                st.markdown("#### 📦 Productos Comparables (Seleccionados)")
-                comparable_data = matching.get("comparable_offers", [])
-                
-                # Store selections in session state
-                if "products_to_exclude" not in st.session_state:
-                    st.session_state.products_to_exclude = []
-                
-                for idx, product in enumerate(comparable_data):
+        # Initialize session state for selections at the top of result display
+        if "products_to_exclude" not in st.session_state:
+            st.session_state.products_to_exclude = []
+        if "products_to_include" not in st.session_state:
+            st.session_state.products_to_include = []
+        
+        # Display all offers found with images and selection controls
+        if matching.get("comparable_offers"):
+            st.markdown("#### 📦 Productos Comparables (Seleccionados)")
+            comparable_data = matching.get("comparable_offers", [])
+            
+            for idx, product in enumerate(comparable_data):
                     col1, col2, col3 = st.columns([1, 6, 1])
                     
                     with col1:
@@ -319,24 +322,22 @@ if st.session_state.get("analysis_result"):
                     
                     with col3:
                         # Button to move to excluded
-                        key = f"exclude_{idx}"
-                        if st.button("❌", key=key, help="Mover a excluidos"):
-                            if product not in st.session_state.products_to_exclude:
+                        product_key = product.get('title', f"product_{idx}")
+                        if st.button("❌", key=f"exclude_{idx}_{product_key[:10]}", help="Mover a excluidos"):
+                            # Check if already excluded using title as unique key
+                            excluded_titles = [p.get('title') for p in st.session_state.products_to_exclude]
+                            if product.get('title') not in excluded_titles:
                                 st.session_state.products_to_exclude.append(product)
-                                st.rerun()
+                            st.rerun()
                     
                     st.markdown("---")
             
-            # Display excluded offers with reasons
-            if matching.get("excluded_offers"):
-                st.markdown("#### ❌ Productos Excluidos")
-                excluded_data = matching.get("excluded_offers", [])
-                
-                # Store selections in session state
-                if "products_to_include" not in st.session_state:
-                    st.session_state.products_to_include = []
-                
-                for idx, product in enumerate(excluded_data):
+        # Display excluded offers with reasons
+        if matching.get("excluded_offers"):
+            st.markdown("#### ❌ Productos Excluidos")
+            excluded_data = matching.get("excluded_offers", [])
+            
+            for idx, product in enumerate(excluded_data):
                     col1, col2, col3 = st.columns([1, 6, 1])
                     
                     with col1:
@@ -361,11 +362,13 @@ if st.session_state.get("analysis_result"):
                     
                     with col3:
                         # Button to move to comparable
-                        key = f"include_{idx}"
-                        if st.button("✅", key=key, help="Mover a comparables"):
-                            if product not in st.session_state.products_to_include:
+                        product_key = product.get('title', f"product_{idx}")
+                        if st.button("✅", key=f"include_{idx}_{product_key[:10]}", help="Mover a comparables"):
+                            # Check if already included using title as unique key
+                            included_titles = [p.get('title') for p in st.session_state.products_to_include]
+                            if product.get('title') not in included_titles:
                                 st.session_state.products_to_include.append(product)
-                                st.rerun()
+                            st.rerun()
                     
                     st.markdown("---")
             
