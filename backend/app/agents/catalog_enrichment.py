@@ -19,6 +19,8 @@ from typing import Dict, Any, List, Optional
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from app.core.logging import get_logger
+from app.core.config import settings
+from app.core.token_costs import get_tracker
 
 logger = get_logger(__name__)
 
@@ -81,6 +83,20 @@ class CatalogEnrichmentAgent:
         
         try:
             response = self.llm.invoke(prompt)
+            
+            # Capture token usage if available
+            try:
+                if hasattr(response, 'response_metadata') and 'usage' in response.response_metadata:
+                    usage = response.response_metadata['usage']
+                    tracker = get_tracker()
+                    tracker.add_call(
+                        model=settings.OPENAI_MODEL_MINI,
+                        input_tokens=usage.get('prompt_tokens', 0),
+                        output_tokens=usage.get('completion_tokens', 0)
+                    )
+            except Exception as e:
+                logger.debug(f"Could not capture token usage: {e}")
+            
             enriched = self._parse_enrichment_response(response.content)
             
             logger.info(

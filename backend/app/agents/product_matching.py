@@ -16,6 +16,7 @@ import numpy as np
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.monitoring import track_agent_execution
+from app.core.token_costs import get_tracker
 
 logger = get_logger(__name__)
 
@@ -376,6 +377,19 @@ Output JSON: { "classification": "comparable"|"accessory"|"bundle"|"not_comparab
             # Invoke LLM
             response = await self.llm.ainvoke(messages)
             
+            # Capture token usage if available
+            try:
+                if hasattr(response, 'response_metadata') and 'usage' in response.response_metadata:
+                    usage = response.response_metadata['usage']
+                    tracker = get_tracker()
+                    tracker.add_call(
+                        model=settings.OPENAI_MODEL_MINI,
+                        input_tokens=usage.get('prompt_tokens', 0),
+                        output_tokens=usage.get('completion_tokens', 0)
+                    )
+            except Exception as e:
+                logger.debug(f"Could not capture token usage: {e}")
+            
             # Parse response (Naive JSON parsing for now, purely text based)
             # In a real scenario, use structured output or PydanticOutputParser
             content = response.content.lower().strip()
@@ -577,6 +591,19 @@ PRODUCTOS A VALIDAR:
         
         try:
             response = self.llm.invoke(validation_prompt + "\n\nDevuelve solo JSON con array de booleans indicando validez de cada producto.")
+            
+            # Capture token usage if available
+            try:
+                if hasattr(response, 'response_metadata') and 'usage' in response.response_metadata:
+                    usage = response.response_metadata['usage']
+                    tracker = get_tracker()
+                    tracker.add_call(
+                        model=settings.OPENAI_MODEL_MINI,
+                        input_tokens=usage.get('prompt_tokens', 0),
+                        output_tokens=usage.get('completion_tokens', 0)
+                    )
+            except Exception as e:
+                logger.debug(f"Could not capture token usage: {e}")
             
             # Parse response - expect array of booleans or confidence scores
             import json

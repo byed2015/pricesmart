@@ -19,6 +19,7 @@ import os
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.monitoring import track_agent_execution
+from app.core.token_costs import get_tracker
 from app.mcp_servers.mercadolibre.scraper import ProductDetails
 
 logger = get_logger(__name__)
@@ -154,6 +155,20 @@ Responde SOLO en formato JSON válido:
         
         try:
             response = self.llm.invoke(prompt)
+            
+            # Capture token usage if available
+            try:
+                if hasattr(response, 'response_metadata') and 'usage' in response.response_metadata:
+                    usage = response.response_metadata['usage']
+                    tracker = get_tracker()
+                    tracker.add_call(
+                        model=settings.OPENAI_MODEL_MINI,
+                        input_tokens=usage.get('prompt_tokens', 0),
+                        output_tokens=usage.get('completion_tokens', 0)
+                    )
+            except Exception as e:
+                logger.debug(f"Could not capture token usage: {e}")
+            
             result = self._parse_llm_response(response.content)
             
             logger.info(

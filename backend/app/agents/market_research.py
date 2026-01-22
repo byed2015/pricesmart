@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.monitoring import track_agent_execution
+from app.core.token_costs import get_tracker
 from app.mcp_servers.mercadolibre import search_products_tool
 
 logger = get_logger(__name__)
@@ -128,6 +129,19 @@ class MarketResearchAgent:
                 "product_name": state["product_name"],
                 "attributes": str(state["product_attributes"])
             })
+            
+            # Capture token usage if available
+            try:
+                if hasattr(result, 'response_metadata') and 'usage' in result.response_metadata:
+                    usage = result.response_metadata['usage']
+                    tracker = get_tracker()
+                    tracker.add_call(
+                        model=settings.OPENAI_MODEL_MINI,
+                        input_tokens=usage.get('prompt_tokens', 0),
+                        output_tokens=usage.get('completion_tokens', 0)
+                    )
+            except Exception as e:
+                logger.debug(f"Could not capture token usage: {e}")
             
             # Parse LLM output to SearchQuery objects
             # For now, create basic queries
