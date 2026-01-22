@@ -413,9 +413,57 @@ if st.session_state.get("analysis_result"):
                 with col1:
                     st.info(f"✅ {len(st.session_state.get('products_to_include', []))} producto(s) a incluir | ❌ {len(st.session_state.get('products_to_exclude', []))} a excluir")
                 with col2:
-                    if st.button("🔄 Re-ejecutar Análisis", type="primary"):
-                        # Here you would need to modify the result with new selections
-                        st.warning("⚠️ Funcionalidad en desarrollo: Re-ejecutar con selecciones manuales")
+                    if st.button("🔄 Re-ejecutar Análisis", type="primary", key="rerun_analysis_btn"):
+                        # Actualizar el analysis_result con las nuevas selecciones
+                        if st.session_state.get("analysis_result"):
+                            result = st.session_state.analysis_result
+                            steps = result.get("pipeline_steps", {})
+                            matching = steps.get("matching", {})
+                            
+                            # Reconstruir listas actualizadas
+                            updated_comparable, updated_excluded = rebuild_product_lists()
+                            
+                            # Actualizar el matching en el result
+                            matching["comparable_offers"] = updated_comparable
+                            matching["excluded_offers"] = updated_excluded
+                            matching["comparable"] = len(updated_comparable)
+                            matching["excluded"] = len(updated_excluded)
+                            
+                            # Recalcular estadísticas basadas en los nuevos comparables
+                            if updated_comparable:
+                                prices = [p.get("price", 0) for p in updated_comparable if p.get("price", 0) > 0]
+                                if prices:
+                                    import statistics
+                                    stats = {
+                                        "overall": {
+                                            "mean": statistics.mean(prices),
+                                            "median": statistics.median(prices),
+                                            "std_dev": statistics.stdev(prices) if len(prices) > 1 else 0,
+                                            "min": min(prices),
+                                            "max": max(prices),
+                                            "range": max(prices) - min(prices)
+                                        }
+                                    }
+                                    steps["statistics"] = stats
+                                    
+                                    # Recalcular recomendación de precio
+                                    pivot_price = steps.get("pivot_product", {}).get("price", 0)
+                                    avg_price = stats["overall"]["mean"]
+                                    
+                                    result["final_recommendation"] = {
+                                        "recommended_price": round(avg_price, 2),
+                                        "suggested_margin_percent": 30.0,
+                                        "profit_per_unit": round(avg_price - cost, 2),
+                                        "roi_percent": round(((avg_price - cost) / cost) * 100, 2) if cost > 0 else 0,
+                                        "strategy": "Precio basado en selección manual de comparables"
+                                    }
+                            
+                            # Limpiar selecciones pendientes
+                            st.session_state.products_to_exclude = []
+                            st.session_state.products_to_include = []
+                            
+                            # Rerun para mostrar cambios
+                            st.rerun()
                         # Clear session state
                         st.session_state.products_to_exclude = []
                         st.session_state.products_to_include = []
