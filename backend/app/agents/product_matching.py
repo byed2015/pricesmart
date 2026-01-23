@@ -379,14 +379,15 @@ Output JSON: { "classification": "comparable"|"accessory"|"bundle"|"not_comparab
             
             # Capture token usage if available
             try:
-                if hasattr(response, 'response_metadata') and 'usage' in response.response_metadata:
-                    usage = response.response_metadata['usage']
+                if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
+                    usage = response.response_metadata['token_usage']
                     tracker = get_tracker()
                     tracker.add_call(
                         model=settings.OPENAI_MODEL_MINI,
                         input_tokens=usage.get('prompt_tokens', 0),
                         output_tokens=usage.get('completion_tokens', 0)
                     )
+                    logger.info(f"✅ Tokens captured: {usage.get('prompt_tokens', 0)} input, {usage.get('completion_tokens', 0)} output")
             except Exception as e:
                 logger.debug(f"Could not capture token usage: {e}")
             
@@ -594,14 +595,15 @@ PRODUCTOS A VALIDAR:
             
             # Capture token usage if available
             try:
-                if hasattr(response, 'response_metadata') and 'usage' in response.response_metadata:
-                    usage = response.response_metadata['usage']
+                if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
+                    usage = response.response_metadata['token_usage']
                     tracker = get_tracker()
                     tracker.add_call(
                         model=settings.OPENAI_MODEL_MINI,
                         input_tokens=usage.get('prompt_tokens', 0),
                         output_tokens=usage.get('completion_tokens', 0)
                     )
+                    logger.info(f"✅ Tokens captured: {usage.get('prompt_tokens', 0)} input, {usage.get('completion_tokens', 0)} output")
             except Exception as e:
                 logger.debug(f"Could not capture token usage: {e}")
             

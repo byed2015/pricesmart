@@ -581,15 +581,42 @@ if st.session_state.get("analysis_result"):
                 with col3:
                     st.metric("ROI Total", f"{profit.get('roi', 0):.1f}%")
     else:
-        # Show detailed error information
-        errors = result.get("errors", [])
-        if errors:
-            st.error(f"❌ Análisis Fallido - {len(errors)} error(es):")
-            for i, err in enumerate(errors, 1):
-                st.error(f"{i}. {err}")
-        else:
-            st.error("❌ Error desconocido: Sin recomendación ni errores registrados")
-            st.write("Resultado completo:", result)
+            # Show pivot info even when errors occurred
+            steps = result.get("pipeline_steps", {})
+            pivot = steps.get("pivot_product")
+            if pivot:
+                st.markdown("### 📦 Producto Analizado")
+                img_col, details_col = st.columns([1, 3])
+                with img_col:
+                    image_url = pivot.get("image_url") or pivot.get("thumbnail")
+                    if image_url:
+                        st.image(image_url, width=150, caption="Producto")
+                    else:
+                        st.markdown("### 📸")
+                        st.caption("Sin imagen")
+                with details_col:
+                    st.markdown(f"**🎯 {pivot.get('title', 'N/A')}**")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("💵 Precio", f"${pivot.get('price', 0):,.0f}")
+                    with col2:
+                        st.metric("🏷️ Marca", pivot.get("brand", "N/A"))
+                    with col3:
+                        st.metric("📦 Condición", pivot.get("condition", "N/A").title())
+                    if pivot.get('permalink'):
+                        st.markdown(f"🔗 [Ver en Mercado Libre]({pivot['permalink']})")
+
+            # Show detailed error information
+            errors = result.get("errors", [])
+            if errors:
+                if any("No comparable products found after filtering" in err for err in errors):
+                    st.warning("⚠️ No se encontraron productos comparables en el rango de precio configurado. Ajusta costo, margen o tolerancia para ampliar el rango.")
+                st.error(f"❌ Análisis Fallido - {len(errors)} error(es):")
+                for i, err in enumerate(errors, 1):
+                    st.error(f"{i}. {err}")
+            else:
+                st.error("❌ Error desconocido: Sin recomendación ni errores registrados")
+                st.write("Resultado completo:", result)
 
 else:
     st.markdown("""

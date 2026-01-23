@@ -177,6 +177,11 @@ class PricingPipeline:
                 result["errors"].append(error_msg)
                 return result
             
+            display_image = pivot_product.image_url
+            if not display_image and getattr(pivot_product, "images", None):
+                # Fallback to first image if thumbnail is missing
+                display_image = pivot_product.images[0]
+
             result["pipeline_steps"]["pivot_product"] = {
                 "status": "completed",
                 "product_id": pivot_product.product_id,
@@ -184,7 +189,7 @@ class PricingPipeline:
                 "price": pivot_product.price,
                 "brand": pivot_product.brand,
                 "attributes": pivot_product.attributes,
-                "image_url": pivot_product.image_url
+                "image_url": display_image
             }
             
             # Calculate price range for filtering (±tolerance)
