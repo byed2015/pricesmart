@@ -315,33 +315,48 @@ class ProductMatchingAgent:
                         reason="Bundle Mismatch: Offer is a Kit/Pack but target is not."
                     )
 
-            # Construct the prompt - PARANOID MODE
+            # Construct the prompt - CUSTOMER-CENTRIC MODE
             messages = [
                 {
                     "role": "system",
-                    "content": """You are a STRICT product matching auditor with VISUAL INSPECTION capabilities.
-Your job is to REJECT any product that is not the EXACT core product requested.
+                    "content": """You are a SMART product matcher analyzing COMPETITOR PRODUCTS for pricing strategy.
+Your job is to find all products a CUSTOMER might consider when searching for the TARGET.
 
-Rules:
-1. VISUAL MISMATCH (CRITICAL):
-   - Compare the TARGET IMAGE (if provided) with the OFFER IMAGE.
-   - If Target is a raw driver (bocina suelta) and Offer is a boxed speaker (bocina bluetooth), REJECT.
-   - If Target is black and Offer is pink/fuchsia, REJECT.
-   - If Form Factors differ (Circular vs Square, Big Magnet vs Toy), REJECT.
+THINK LIKE A CUSTOMER:
+- If I'm looking for "Detonador 8 chisperos", would I also consider "Detonador 4 chisperos"? YES - both are detonators
+- If I'm looking for "Bocina 18", would I consider "Bocina 15"? YES - similar segment, just different size
+- If I'm looking for "Subwoofer 1000W", would I consider "Subwoofer 800W"? YES - competitive alternative
 
-2. REJECT Accessories: "Case", "Funda", "Strap", "Cable", "Charger", "Box", "Skin".
-3. REJECT Spare Parts: "Replacement", "Pieza", "Repuesto", "Pantalla", "Display".
-4. REJECT Different Models: If target is "XM5", REJECT "XM4". If target is "Pro", REJECT "Non-Pro". Check model numbers carefully.
-5. REJECT Clones/Fakes: "Tipo", "Clon", "Generico", "OEM" (unless target is too).
-6. REJECT Damaged/Parts: "Para reparar", "Detalles", "No prende", "Refacciones".
+RULES (REJECT ONLY CLEAR MISMATCHES):
+
+1. REJECT TRUE INCOMPATIBILITY:
+   - Different CATEGORY: Speaker vs Cable → REJECT
+   - Different FUNCTION: Subwoofer vs Tweeter → REJECT  
+   - Accessory ONLY (no main product): "Funda", "Cable", "Case" alone → REJECT
+   - Damaged/Non-functional: "Para reparar", "No funciona", "Defectuoso" → REJECT
+
+2. INCLUDE IF SAME CORE CATEGORY (even if specs slightly differ):
+   - Target: "Detonador 8ch" | Offer: "Detonador 4ch" → COMPARABLE (both detonators, customer sees as alternative)
+   - Target: "Bocina 18" | Offer: "Bocina 15" → COMPARABLE (same family, different size variant)
+   - Target: "Subwoofer 1000W" | Offer: "Subwoofer 800W" → COMPARABLE (similar power range, direct competitor)
+   - Target: "Pro Model" | Offer: "Standard Model" → COMPARABLE (same base product, just different tier)
+
+3. SLIGHT VARIANTS ARE COMPARABLE:
+   - Different size/capacity (±30% variation) = COMPARABLE
+   - Different power/watts (±40% variation) = COMPARABLE
+   - Different model/version = COMPARABLE (unless specifications conflict)
+
+4. CHECK VISUAL MISMATCH (if images available):
+   - Completely different form factor (circular vs square speaker) AND not mentioned in title = SUSPICIOUS but not automatic REJECT
+   - Color mismatch alone = NOT A REASON TO REJECT (products come in different colors)
 
 Classification:
-- comparable: ONLY if it is the main product itself AND visually similar.
-- accessory: Cases, parts, boxes.
-- bundle: Main product + extras.
-- not_comparable: Everything else (wrong visual, wrong model).
+- comparable: Same product family, customer would consider it as a direct alternative
+- accessory: Standalone accessory (case without speaker) OR bundle component
+- bundle: Multiple products packaged together (Kit, Set, Combo, Paquete)
+- not_comparable: Different category, incompatible function, or damaged goods
 
-Output JSON: { "classification": "comparable"|"accessory"|"bundle"|"not_comparable", "confidence": float, "reason": "short explanation citing visual or text reasoning" }"""
+Output JSON: { "classification": "comparable"|"accessory"|"bundle"|"not_comparable", "confidence": 0.0-1.0, "reason": "concise explanation" }"""
                 },
                 {
                     "role": "user",
@@ -641,12 +656,15 @@ PRODUCTOS A VALIDAR:
     async def filter_comparable(self, state: ProductMatchingState) -> ProductMatchingState:
         """
         Filter to keep only comparable products.
-        Falls back to including best-price products if filtering is too aggressive.
+        Strategy:
+        1. First pass: Include products marked as "comparable" by LLM
+        2. If none: Include products where LLM had low confidence (might have missed some)
+        3. If still none: Return empty (truly no comparables found)
         """
         classified = state["classified_offers"]
         raw_offers = state["raw_offers"]
         
-        # Create lookup by title (since we don't have IDs in all cases)
+        # PASS 1: Get strict comparables (LLM said YES)
         comparable_titles = {
             c.title for c in classified if c.is_comparable
         }
@@ -656,45 +674,31 @@ PRODUCTOS A VALIDAR:
             if o['title'] in comparable_titles
         ]
         
-        # FALLBACK: If too many products are filtered out, include top N by price proximity
-        if not comparable_offers and raw_offers:
+        # PASS 2: If no strict comparables, try uncertain ones (LLM had low confidence)
+        if not comparable_offers:
             logger.warning(
-                "⚠️ No comparable offers after filtering. Applying fallback strategy.",
-                total_offers=len(raw_offers),
-                comparable=0
+                "⚠️ No strict comparables found. Looking for uncertain classifications (confidence < 0.7)...",
+                total_offers=len(raw_offers)
             )
             
-            reference_price = state.get("reference_price", 0.0)
+            # Find products where LLM was uncertain (low confidence)
+            uncertain_titles = {
+                c.title for c in classified 
+                if not c.is_comparable and c.confidence < 0.7  # Uncertain rejection
+            }
             
-            # Sort by price proximity to reference
-            if reference_price > 0:
-                offers_with_distance = []
-                for o in raw_offers:
-                    try:
-                        price = float(o.get("price", 0))
-                        distance = abs(price - reference_price) / reference_price if reference_price else float('inf')
-                        offers_with_distance.append((o, distance))
-                    except:
-                        offers_with_distance.append((o, float('inf')))
-                
-                # Sort by distance and take top 10
-                offers_with_distance.sort(key=lambda x: x[1])
-                comparable_offers = [o[0] for o in offers_with_distance[:10]]
-                
+            comparable_offers = [
+                o for o in raw_offers
+                if o['title'] in uncertain_titles
+            ]
+            
+            if comparable_offers:
                 logger.info(
-                    "✅ Fallback applied: Selected top 10 by price proximity",
-                    reference_price=reference_price,
+                    "✅ Found uncertain classifications to include as fallback",
                     selected=len(comparable_offers),
-                    avg_distance_percent=round(
-                        sum(d for _, d in offers_with_distance[:10]) / 10 * 100, 2
+                    avg_confidence=round(
+                        sum(c.confidence for c in classified if c.title in uncertain_titles) / len(uncertain_titles), 2
                     )
-                )
-            else:
-                # If no reference price, just take first 10
-                comparable_offers = raw_offers[:10]
-                logger.info(
-                    "✅ Fallback applied: Selected first 10 offers (no price reference)",
-                    selected=len(comparable_offers)
                 )
         
         state["comparable_offers"] = comparable_offers
